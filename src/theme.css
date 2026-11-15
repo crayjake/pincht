@@ -1,10 +1,19 @@
 @import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+@font-face {
+    font-family: 'Hanken Grotesk';
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url('@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2') format('woff2');
+}
 
 :root {
     color-scheme: light dark;
 
     /* Typography */
-    --font-sans: system-ui, sans-serif;
+    --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
     /* Surfaces and text */
