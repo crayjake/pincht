@@ -1,0 +1,26 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "Finally stuck the last move on " },
+        { "type": "text", "text": "@Sidepull Season", "marks": [{ "type": "mockMention", "attrs": { "category": "climb" } }] },
+        { "type": "text", "text": ". That was the last climb on my " },
+        { "type": "text", "text": "@Christmas goal", "marks": [{ "type": "mockMention", "attrs": { "category": "goal" } }] },
+        { "type": "text", "text": " list." }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "@Finger rehab", "marks": [{ "type": "mockMention", "attrs": { "category": "rehab" } }] },
+        { "type": "text", "text": " felt steady and I had plenty left for " },
+        { "type": "text", "text": "@Pull-ups", "marks": [{ "type": "mockMention", "attrs": { "category": "training" } }] },
+        { "type": "text", "text": ". Felt better than I expected after " },
+        { "type": "text", "text": "@Last night's sleep", "marks": [{ "type": "mockMention", "attrs": { "category": "sleep" } }] },
+        { "type": "text", "text": "." }
+      ]
+    }
+  ]
+}

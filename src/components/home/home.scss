@@ -1,0 +1,225 @@
+.container {
+    display: flex;
+    gap: 10px;
+    margin: 10px;
+
+    flex-direction: column;
+}
+
+.scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    min-height: 0;
+    max-height: calc(100dvh - 20px);
+    overflow-y: auto;
+    padding: 6px 6px calc(var(--tt-toolbar-height) + 16px);
+    margin: -6px;
+    scroll-padding-bottom: calc(var(--tt-toolbar-height) + 16px);
+
+    > * {
+        flex-shrink: 0;
+    }
+}
+
+p.date {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 10pt;
+    margin: 0 10px -4px;
+
+    &:not(:first-child) {
+        margin-top: 10px;
+    }
+}
+
+    
+.empty-day {
+    text-align: center;
+    margin: 0 10px;
+    color: var(--color-text-muted);
+    font-size: 14px;
+}
+
+.widgets {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.filter {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+
+    .filter-options {
+        display: flex;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 10px;
+        min-width: 0;
+        margin-top: -50px;
+        margin-left: 50px;
+        transition: margin 250ms ease;
+    }
+
+    .filter-pill {
+        border-radius: 999px;
+        padding-inline: 16px;
+        min-height: 36px;
+    }
+
+    .filter-search {
+        display: flex;
+        align-items: center;
+        width: 40px;
+        height: 40px;
+        padding: 3px;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        color: var(--color-text);
+        overflow: hidden;
+        transition: width 250ms ease, background-color 250ms ease, border-color 250ms ease;
+
+        > .tiptap-button {
+            flex-shrink: 0;
+        }
+
+        &:focus-within:has(.filter-search-fields:not([inert])) {
+            outline: 2px solid var(--color-text-muted);
+            outline-offset: 2px;
+        }
+
+        .tiptap-input {
+            border: 0;
+            color: inherit;
+        }
+    }
+
+    .filter-search-fields {
+        display: flex;
+        align-items: center;
+        flex: 1;
+        min-width: 0;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 180ms ease, visibility 180ms;
+    }
+
+    &[data-search-open="true"] {
+        .filter-search {
+            width: 100%;
+            border-color: var(--color-border);
+            background-color: var(--color-surface);
+        }
+
+        .filter-search-fields {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .filter-options {
+            margin-top: 0;
+            margin-left: 0;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .filter-search,
+        .filter-search-fields,
+        .filter-options {
+            transition: none;
+        }
+    }
+}
+
+.widget {
+    aspect-ratio: 1;
+}
+
+.card {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: calc(0.125rem + var(--tt-radius-lg) + 1px);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: var(--tt-shadow-elevated-md);
+
+    .summary {
+        display: grid;
+        grid-template-columns: auto minmax(12px, 1fr) auto minmax(12px, 1fr) auto;
+        align-items: center;
+        font-family: var(--font-mono);
+
+        margin-top: 0.2rem;
+        color: var(--color-text-muted);
+        font-size: 9pt;
+
+        &:only-child {
+            margin: 0;
+        }
+
+        > span[aria-hidden="true"] {
+            text-align: center;
+        }
+    }
+
+    h1 {
+        margin-top: 0;
+        margin-bottom: 0;
+        
+    }
+}
+
+.input {
+    padding: 28px;
+
+    h1 {
+        font-size: 22px;
+        line-height: 1.3;
+        color: var(--color-text);
+    }
+
+    .summary {
+        margin-bottom: 16px;
+    }
+
+    .simple-editor-wrapper,
+    .simple-editor-content {
+        min-height: 0;
+        max-width: none;
+    }
+
+    .simple-editor-content .tiptap.ProseMirror.simple-editor {
+        padding: 0;
+        font-family: var(--font-sans);
+        color: var(--color-text-muted);
+
+        p {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.85;
+        }
+
+        p + p {
+            margin-top: 12px;
+        }
+
+        [data-mock-mention] {
+            padding: 2px 6px;
+            border-radius: 5px;
+            box-decoration-break: clone;
+            -webkit-box-decoration-break: clone;
+        }
+
+        @each $category in climb, goal, rehab, training, sleep {
+            [data-category="#{$category}"] {
+                background-color: var(--color-#{$category}-bg);
+                color: var(--color-#{$category}-fg);
+            }
+        }
+    }
+}

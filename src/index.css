@@ -1,0 +1,19 @@
+@import './theme.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: var(--color-page);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-page);
+}
+
+#root {
+  min-height: 100svh;
+}

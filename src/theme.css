@@ -1,0 +1,35 @@
+@import '@fontsource/ibm-plex-mono/400.css';
+
+:root {
+    color-scheme: light dark;
+
+    /* Typography */
+    --font-sans: system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+    /* Surfaces and text */
+    --color-page: light-dark(#fbfaf6, #1c1e1b);
+    --color-sidebar: light-dark(#f2f0e9, #252721);
+    --color-surface: light-dark(#fffefa, #242620);
+    --color-border: light-dark(#dedfd3, #42463b);
+    --color-text: light-dark(#242820, #f1eee5);
+    --color-text-muted: light-dark(#5c6255, #b6bbaa);
+
+    /* Category accents: soft fills and readable foregrounds */
+    --color-climb-bg: light-dark(#fae8da, #482f25);
+    --color-climb-fg: light-dark(#853d24, #f5c0a3);
+    --color-rehab-bg: light-dark(#e6efd9, #303e26);
+    --color-rehab-fg: light-dark(#365725, #c7e3ad);
+    --color-training-bg: light-dark(#e2ebf9, #29374d);
+    --color-training-fg: light-dark(#254e89, #bfd6fa);
+    --color-sleep-bg: light-dark(#def0eb, #213c37);
+    --color-sleep-fg: light-dark(#215c50, #ade3d6);
+    --color-goal-bg: light-dark(#eee3f5, #3d2f46);
+    --color-goal-fg: light-dark(#643a7d, #e7c8f2);
+
+    /* Sleep-stage chart */
+    --color-sleep-light: light-dark(#a597bf, #8a7da1);
+    --color-sleep-deep: light-dark(#634782, #c3a5e5);
+    --color-sleep-rem: light-dark(#747ab1, #9ea9e3);
+    --color-sleep-awake: light-dark(#ba7447, #e7a274);
+}
