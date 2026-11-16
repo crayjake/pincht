@@ -3,6 +3,9 @@ import { sampleDragLoads } from '../../routines/rehab-loads';
 import { Icon } from './journal-icons';
 import { asleepMinutes, dateValue, duration, stageTotals, getNights, type Category, type Day, type RehabLoad, type SleepNight } from './journal-data';
 import type { SummaryCategory } from './journal-summary';
+import { daySummary } from './journal-summary';
+import { addDays, type RoutineData } from '../../routines/data';
+import { localDate, shortDate } from './journal-data';
 
 export function Hold({ category }: { category: SummaryCategory }) {
   return <span className="hold" data-category={category} />;
@@ -11,15 +14,46 @@ export function Holds({ categories, overlap = false }: { categories: SummaryCate
   return <span className={`holds${overlap ? ' holds-overlap' : ''}`} aria-hidden="true">{categories.map((category, i) => <Hold key={`${category}-${i}`} category={category} />)}</span>;
 }
 export function Widget({ title, category, headline, subline, children, onConfigure }: {
-  title: string; category: Category; headline: ReactNode; subline: string; children: ReactNode; onConfigure: () => void;
+  title: string; category: Category; headline: ReactNode; subline: string; children: ReactNode; onConfigure?: () => void;
 }) {
   const titleId = useId();
   return <section className="journal-widget" aria-labelledby={titleId}>
     <div className="widget-label" data-category={category} id={titleId}><Hold category={category} />{title}</div>
-    <button className="widget-configure" aria-label={`Configure ${title} widget`} onClick={onConfigure}><Icon name="more" size={18} /></button>
+    {onConfigure && <button className="widget-configure" aria-label={`Configure ${title} widget`} onClick={onConfigure}><Icon name="more" size={18} /></button>}
     <div><div className="widget-value">{headline}</div><div className="widget-subline">{subline}</div></div>
     {children}
   </section>;
+}
+
+function activityWeek(days: Day[], data: RoutineData, climbingOnly: boolean) {
+  const today = localDate();
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(today, i - 6);
+    const day = days.find(day => day.date === date);
+    const items = day ? daySummary(day, data).filter(item => climbingOnly ? item.category === 'climb' : ['climb', 'rehab', 'training', 'habit'].includes(item.category)) : [];
+    return { date, items };
+  });
+}
+function ActivityStrip({ week }: { week: ReturnType<typeof activityWeek> }) {
+  return <div className="activity-strip">{week.map(({ date, items }) => <a key={date} href={`#/journal/${date}`} aria-label={`${shortDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}: ${items.map(item => item.label).join(', ') || 'no activity logged'}`} aria-current={date === localDate() ? 'date' : undefined}>
+    <span>{shortDate(date, { weekday: 'narrow' })}</span>
+    <div className="activity-marks" aria-hidden="true">{items.map(item => <i key={item.id} data-category={item.category} />)}</div>
+    <span>{shortDate(date, { day: 'numeric' })}</span>
+  </a>)}</div>;
+}
+export function WeeklyActivityWidget({ days, data }: { days: Day[]; data: RoutineData }) {
+  const week = activityWeek(days, data, false);
+  const count = week.filter(day => day.items.length).length;
+  return <div className="weekly-activity"><Widget title="Last seven days" category="training" headline={<><span>{count}</span><small>active {count === 1 ? 'day' : 'days'}</small></>} subline="Logged activities and completed habits"><ActivityStrip week={week} /></Widget></div>;
+}
+export function ClimbingWidgets({ days, data, loads }: { days: Day[]; data: RoutineData; loads: RehabLoad[] }) {
+  const week = activityWeek(days, data, true);
+  const count = week.filter(day => day.items.length).length;
+  const latest = loads.at(-1);
+  return <div className="journal-widgets">
+    <Widget title="Finger rehab" category="rehab" headline={<><span>{latest ? latest.kg.toFixed(1) : '—'}</span><small>kg</small></>} subline="20 mm drag · last hold"><RehabChart loads={loads} /></Widget>
+    <Widget title="Climbing" category="climb" headline={<><span>{count}</span><small>{count === 1 ? 'day' : 'days'}</small></>} subline="last seven days"><ActivityStrip week={week} /></Widget>
+  </div>;
 }
 export function RehabChart({ loads = sampleDragLoads }: { loads?: RehabLoad[] }) {
   if (!loads.length) return <p className="widget-subline">No drag measurements yet.</p>;

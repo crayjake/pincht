@@ -7,21 +7,22 @@ import { chartResources, duration, emptyFilter, entryRecords, groupDays, getNigh
 import { Icon } from './journal-icons';
 import { DayRecords, RecordItem } from './journal-records';
 import { Sheet } from './journal-sheet';
-import { JournalWidgets, RehabChart, SleepChart } from './journal-widgets';
-import { PrimaryNav } from '../app-navigation';
+import { ClimbingWidgets, JournalWidgets, RehabChart, SleepChart, WeeklyActivityWidget } from './journal-widgets';
+import { InDevelopment, PrimaryNav } from '../app-navigation';
 import { DueToday, HabitRows } from '../../routines/due-today';
 import { addDays, adherence, withRoutineDays, type Routine } from '../../routines/data';
 import { useRoutines } from '../../routines/use-routines';
-import { AlcoholSheet, ReadingSheet, RoutinesSheet, WelcomeSheet } from '../../routines/routine-sheets';
+import { AlcoholSheet, ReadingSheet, WelcomeSheet } from '../../routines/routine-sheets';
 import { dragLoads } from '../../routines/rehab-loads';
 import { JournalSearch } from './journal-search';
 import { daySummary, type SummaryCategory } from './journal-summary';
+import { climbingView, isClimbingDay } from './journal-views';
 
 const storageKey = 'pincht.journal.v1';
 const sampleEntriesKey = 'pincht.journal.sample-entries';
 const emptyBody: RichBody = { type: 'doc', content: [{ type: 'paragraph' }] };
 const summaryRoutes: Partial<Record<SummaryCategory, string>> = {
-  climb: '#/climbs', rehab: '#/train/pulley-rehab', training: '#/train', sleep: '#/metrics', weight: '#/metrics',
+  climb: '#/climbing', rehab: '#/train/pulley-rehab', training: '#/train', sleep: '#/metrics', weight: '#/metrics',
 };
 function loadDays(): Day[] {
   try {
@@ -40,7 +41,7 @@ function loadDays(): Day[] {
 function TypeWords({ types }: { types: DayType[] }) {
   return <>{types.map((type, i) => <span key={type}>{i > 0 && <span className="type-join"> + </span>}<span data-category={type}>{type}</span></span>)}</>;
 }
-export default function Home({ entryDate }: { entryDate?: string }) {
+export default function Home({ entryDate, screen = 'journal' }: { entryDate?: string; screen?: 'today' | 'journal' | 'climbing' }) {
   const [baseDays, setDays] = useState(loadDays);
   const routines = useRoutines(!entryDate);
   const { data, update, recentSkips } = routines;
@@ -58,7 +59,6 @@ export default function Home({ entryDate }: { entryDate?: string }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [detail, setDetail] = useState<PillResource | null>(null);
   const [routineDetail, setRoutineDetail] = useState<{ routine: Routine; date: string } | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [widgetsOpen, setWidgetsOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [scrolled, setScrolled] = useState(false);
@@ -80,14 +80,16 @@ export default function Home({ entryDate }: { entryDate?: string }) {
     window.addEventListener('scroll', scroll, { passive: true });
     window.addEventListener('resize', scroll);
     return () => { window.removeEventListener('scroll', scroll); window.removeEventListener('resize', scroll); };
-  }, [entryDate, searchOpen]);
-  useEffect(() => { document.title = `${entryDate ? days.find(d => d.date === entryDate)?.entry?.title || 'Journal' : searchOpen ? 'Search' : 'Today'} · pincht`; }, [entryDate, searchOpen, days]);
+  }, [entryDate, searchOpen, screen]);
+  const screenTitle = screen === 'today' ? 'Today' : screen === 'climbing' ? 'Climbing' : 'Journal';
+  useEffect(() => { document.title = `${entryDate ? days.find(d => d.date === entryDate)?.entry?.title || 'Journal' : searchOpen ? 'Search' : screenTitle} · pincht`; }, [entryDate, searchOpen, days, screenTitle]);
   const resources = useMemo(() => [...chartResources, ...days.flatMap(day => day.records)], [days]);
+  const viewDays = useMemo(() => screen === 'climbing' && !entryDate ? days.filter(isClimbingDay) : days, [days, screen, entryDate]);
   const groups = useMemo(() => {
     // Empty composers are a display state, never a saved journal entry.
-    const visible = entryDate ? days.filter(day => day.date === entryDate) : days;
+    const visible = entryDate ? days.filter(day => day.date === entryDate) : viewDays;
     return groupDays(visible.map(day => day.date === today || entryDate ? { ...day, entry: day.entry ?? { title: '', body: emptyBody } } : day));
-  }, [days, entryDate, today]);
+  }, [days, viewDays, entryDate, today]);
   function updateDay(day: Day) {
     const clean = { ...day, entry: hasJournalContent(day.entry) ? day.entry : undefined, records: day.records.filter(record => record.kind !== 'habit') };
     setDays(current => current.some(d => d.date === day.date) ? current.map(d => d.date === day.date ? clean : d) : [...current, clean]);
@@ -102,25 +104,37 @@ export default function Home({ entryDate }: { entryDate?: string }) {
   }
   function closeSearch() { setSearchOpen(false); setQuery(''); setFilter(emptyFilter); window.scrollTo(0, 0); }
   const focused = days.find(d => d.date === entryDate);
+  const tasks = (variant: 'card' | 'journal' | 'compact') => <DueToday data={data} recentSkips={recentSkips} sessions={sessions} onChange={update} onOpen={openRoutine} kinds={screen === 'climbing' ? climbingView.routineKinds : undefined} variant={variant} />;
   const searchActions = <><button className="icon-button feed-search-trigger" aria-label="Search journal" onClick={() => { setSearchOpen(true); window.scrollTo(0, 0); }}><Icon name="search" size={20} /><span>Search journal</span></button><button className="icon-button feed-filter-trigger" aria-label="Filter journal" onClick={() => { setSearchOpen(true); setFilterOpen(true); window.scrollTo(0, 0); }}><Icon name="filter" size={20} /></button></>;
   return <>
-    {searchOpen && !entryDate ? <JournalSearch days={days} data={data} query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} onAllFilters={() => setFilterOpen(true)} onClose={closeSearch} onOpen={setDetail} onRoutine={openRoutine} /> : <>
-      {entryDate && <header className="expanded-header"><a className="icon-button" href="#/journal" aria-label="Back to Today"><Icon name="back" /></a><span className="sticky-title">{scrolled ? focused?.entry?.title || 'Journal' : 'Journal'}</span>{scrolled && <span className="sticky-date">{shortDate(entryDate, { day: 'numeric', month: 'short' })}</span>}</header>}
-      <main className={`today-page${entryDate ? ' expanded-page' : ''}`} aria-label={entryDate ? 'Expanded journal entry' : 'Today’s climbing journal'}>
-        {!entryDate && <><DueToday data={data} recentSkips={recentSkips} sessions={sessions} onChange={update} onOpen={openRoutine} onSettings={() => setSettingsOpen(true)} /><JournalWidgets days={days} loads={loads} visible={data.widgets} onConfigure={() => setWidgetsOpen(true)} /><header ref={journalHeading} className={`journal-heading${scrolled ? ' is-pinned' : ''}`}><span className="eyebrow muted">Journal</span><div>{searchActions}</div></header></>}
+    {searchOpen && !entryDate ? <JournalSearch days={viewDays} data={data} query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} onAllFilters={() => setFilterOpen(true)} onClose={closeSearch} onOpen={setDetail} onRoutine={openRoutine} /> : <>
+      {entryDate && <header className="expanded-header"><a className="icon-button" href="#/journal" aria-label="Back to Journal"><Icon name="back" /></a><span className="sticky-title">{scrolled ? focused?.entry?.title || 'Journal' : 'Journal'}</span>{scrolled && <span className="sticky-date">{shortDate(entryDate, { day: 'numeric', month: 'short' })}</span>}</header>}
+      <main className={`today-page screen-${screen}${entryDate ? ' expanded-page' : ''}`} aria-label={entryDate ? 'Expanded journal entry' : screenTitle}>
+        {!entryDate && screen === 'today' && <>
+          <header className="screen-heading"><div><h1>Today</h1><p>{shortDate(today, { weekday: 'long', day: 'numeric', month: 'long' })}</p></div><a className="text-action" href="#/journal">Journal <Icon name="book" size={18} /></a></header>
+          {tasks('card')}
+          <JournalWidgets days={days} loads={loads} visible={data.widgets} onConfigure={() => setWidgetsOpen(true)} />
+          <WeeklyActivityWidget days={days} data={data} />
+        </>}
+        {!entryDate && screen === 'climbing' && <>
+          <InDevelopment /><header className="screen-heading"><div><h1>Climbing</h1><p>Climb · rehab · training</p></div></header>
+          <ClimbingWidgets days={days} data={data} loads={loads} />
+          {tasks('compact')}
+        </>}
+        {!entryDate && screen !== 'today' && <header ref={journalHeading} className={`journal-heading${scrolled ? ' is-pinned' : ''}`}><span className="eyebrow muted">{screen === 'climbing' ? 'Climbing journal' : 'Journal'}</span><div>{searchActions}</div></header>}
         {(storageError || routines.error) && <p role="status" className="storage-notice">{routines.error || 'Changes are available for this visit. Your browser could not save them.'}</p>}
-        <div className="journal-timeline">
+        {(entryDate || screen !== 'today') && <div className="journal-timeline">
           {groups.map(group => {
             if (group.kind === 'routine') {
               const id = group.days[0].date;
               return <section className="routine-run" key={`routine-${id}`}>
                 <header className="routine-range"><span>{rangeLabel(group.days)}</span><span>{group.days.length} {group.days.length === 1 ? 'day' : 'days'}</span></header>
-                <p className="run-adherence">{adherence(data, group.days.map(d => d.date))}</p>
+                {screen !== 'climbing' && <p className="run-adherence">{adherence(data, group.days.map(d => d.date))}</p>}
                 <div className="routine-card">{group.days.map(day => <div className={`routine-day${expanded.has(day.date) ? ' is-expanded' : ''}`} key={day.date}>
                   <button type="button" className="routine-row" aria-label={`${shortDate(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}, ${day.types.join(' and ')}, ${day.records.length} records`} aria-expanded={expanded.has(day.date)} aria-controls={`records-${day.date}`} onClick={() => toggle(day.date)}>
                     <span className="routine-date">{shortDate(day.date, { weekday: 'short' })} {shortDate(day.date, { day: 'numeric' })}</span><span className="routine-types"><TypeWords types={day.types} /></span><span className="routine-sleep">{day.metrics.sleep !== undefined ? duration(day.metrics.sleep, true) : '—'}</span><span className="routine-weight">{day.metrics.weight !== undefined ? `${day.metrics.weight.toFixed(1)} kg` : '—'}</span>
                   </button>
-                  <HabitRows data={data} date={day.date} recentSkips={recentSkips} onOpen={openRoutine} onChange={update} />
+                  {screen !== 'climbing' && <HabitRows data={data} date={day.date} recentSkips={recentSkips} onOpen={openRoutine} onChange={update} />}
                   {expanded.has(day.date) && <div id={`records-${day.date}`}>
                     <DayRecords records={day.records} onOpen={setDetail} compact id={`day-records-${day.date}`} />
                     <a className="write-entry-action text-action" href={`#/journal/${day.date}`}>Write journal entry</a>
@@ -144,22 +158,22 @@ export default function Home({ entryDate }: { entryDate?: string }) {
                       : <span className="summary-item" data-category={item.category} key={item.id}>{item.label}</span>;
                 })}
               </div>}
+              {!entryDate && screen === 'journal' && day.date === today && tasks('journal')}
               {entryDate || day.date === today ? <input className="entry-title-input" aria-label="Journal title" placeholder="Journal title" value={day.entry!.title} onChange={event => updateEntry(day, { ...day.entry!, title: event.target.value })} /> : <h1><a href={`#/journal/${day.date}`}>{day.entry!.title || 'Untitled entry'}</a></h1>}
               <JournalBody body={day.entry!.body} resources={resources} placeholder={day.date === today || entryDate ? 'Write about your day…' : undefined} onChange={body => updateEntry(day, { ...day.entry!, body })} onOpen={setDetail} />
-              <HabitRows data={data} date={day.date} recentSkips={recentSkips} onOpen={openRoutine} onChange={update} />
+              {(entryDate || (screen === 'journal' && day.date !== today)) && <HabitRows data={data} date={day.date} recentSkips={recentSkips} onOpen={openRoutine} onChange={update} />}
               {entryDate ? <DayRecords records={records} onOpen={setDetail} id={`records-${day.date}`} /> : <>
                 <button type="button" className="records-toggle" aria-expanded={expanded.has(day.date)} aria-controls={`records-${day.date}`} onClick={() => toggle(day.date)}><span className="records-toggle-inner"><span>{records.length} records</span><Icon name="chevron" size={16} /></span></button>
                 {expanded.has(day.date) && <DayRecords records={records} onOpen={setDetail} id={`records-${day.date}`} />}
               </>}
             </article>;
           })}
-          {!groups.length && <p className="empty-timeline" role="status">{entryDate ? 'There is no written entry for this day.' : 'Your journal is empty.'}</p>}
-        </div>
+          {!groups.length && <p className="empty-timeline" role="status">{entryDate ? 'There is no written entry for this day.' : screen === 'climbing' ? 'No climbing, rehab, or training days logged yet.' : 'Your journal is empty.'}</p>}
+        </div>}
       </main>
-      {!entryDate && <PrimaryNav active="today" />}
+      {!entryDate && <PrimaryNav active={screen} />}
     </>}
     {filterOpen && <HomeFilters filter={filter} onChange={setFilter} onClose={() => setFilterOpen(false)} />}
-    {settingsOpen && <RoutinesSheet data={data} onChange={update} onClose={() => setSettingsOpen(false)} />}
     {widgetsOpen && <Sheet title="Today widgets" development onClose={() => setWidgetsOpen(false)}>{(['rehab', 'sleep'] as const).map(widget => <label className="metric-choice" key={widget}><span>{widget === 'rehab' ? 'Finger rehab · 20 mm drag' : 'Sleep'}</span><input type="checkbox" checked={data.widgets[widget]} onChange={e => update({ ...data, widgets: { ...data.widgets, [widget]: e.target.checked } })} /></label>)}<p className="sheet-hint">Rehab combines the sample drag measurements with your saved 20 mm drag holds. Simulator results are excluded.</p><button className="primary-button full-width" onClick={() => setWidgetsOpen(false)}>Done</button></Sheet>}
     {routineDetail && (routineDetail.routine.kind === 'reading' ? <ReadingSheet key={`${routineDetail.routine.id}-${routineDetail.date}`} data={data} routine={routineDetail.routine} date={routineDetail.date} onChange={update} onClose={() => setRoutineDetail(null)} /> : <AlcoholSheet key={`${routineDetail.routine.id}-${routineDetail.date}`} data={data} routine={routineDetail.routine} date={routineDetail.date} onChange={update} onClose={() => setRoutineDetail(null)} />)}
     {!entryDate && routines.welcome && !routineDetail && <WelcomeSheet data={data} away={routines.away} onChange={update} onReview={openRoutine} onClose={routines.closeWelcome} />}

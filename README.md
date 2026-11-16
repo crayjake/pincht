@@ -91,7 +91,8 @@ Saved real sessions use `pincht.workouts.v1` in localStorage. Simulator sessions
 
 - `src/routines/`: routine scheduling, check-ins, book progress, Today card, reading/welcome sheets, and drag-load projection.
 - `src/components/home/journal-search-data.ts` / `journal-search.tsx`: individual record/entry/routine search and full-screen filters.
-- `src/components/app-navigation.tsx` / `home/library-pages.tsx`: Today/Train/Climbs/Metrics navigation and development-marked destinations.
+- `src/components/app-navigation.tsx` / `home/library-pages.tsx`: Today/Journal/Climbing/Train navigation and development-marked destinations; Climbs and Metrics remain available as detail screens.
+- `src/components/home/journal-views.ts`: the Climbing preset’s activity and routine scope.
 - `src/workouts/fixtures.ts`: editable typed exercises, presets, and workout plans.
 - `src/workouts/workout.ts`: whole-workout summaries and prescription snapshots.
 - `src/workouts/session.ts`: pure workout state and timer transitions, independent of BLE and React. Rest/manual timers use deadlines. BLE completion and recorded duration use device timestamps, including uint32 rollover; fresh samples are required through the prescribed duration.

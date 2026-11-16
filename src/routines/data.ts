@@ -2,6 +2,10 @@ import { dateValue, localDate, shortDate, type Day, type JournalRecord } from '.
 import type { Session } from '../workouts/session.ts';
 
 export type RoutineKind = 'reading' | 'alcohol' | 'training' | 'rehab';
+// Workout plans assigned to each routine, alongside the editable workout fixtures.
+export const routineWorkoutPlanIds: Record<string, readonly string[]> = {
+  train: ['pull-ups-3x5', 'mobility'],
+};
 export interface Routine {
   id: string; name: string; kind: RoutineKind; active: boolean; start: string;
   schedule: 'daily' | 'interval' | 'weekly'; interval: number; target: number;

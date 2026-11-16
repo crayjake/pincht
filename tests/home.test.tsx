@@ -4,6 +4,7 @@ import Home from '../src/components/home/home';
 import LibraryPage from '../src/components/home/library-pages';
 import App from '../src/App';
 import { ROUTINES_KEY, seedRoutines, type RoutineData } from '../src/routines/data';
+import { DueToday } from '../src/routines/due-today';
 import { chartResources, seedDays, type Day } from '../src/components/home/journal-data';
 import type { Editor } from '@tiptap/core';
 
@@ -35,6 +36,89 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('Today and journal flows', () => {
+  it.each(['card', 'journal', 'compact'] as const)('shows the %s assigned workouts inline without navigating or a Routines dropdown', async variant => {
+    render(<DueToday data={seedRoutines('2026-11-16')} recentSkips={[]} sessions={[]} onChange={vi.fn()} onOpen={vi.fn()} variant={variant} />);
+    const arrow = screen.getByRole('button', { name: 'Required workout' });
+    expect(arrow.getAttribute('aria-expanded')).toBe('false');
+    await click('Required workout');
+    expect(arrow.getAttribute('aria-expanded')).toBe('true');
+    expect(window.location.hash).toBe('#/journal');
+    const breakdown = screen.getByRole('region', { name: 'Required workout' });
+    expect(breakdown.id).toBe(arrow.getAttribute('aria-controls'));
+    expect(within(breakdown).getByRole('link', { name: 'Pull-ups Open workout' }).getAttribute('href')).toBe('#/train/pull-ups-3x5');
+    expect(within(breakdown).getByRole('link', { name: 'Mobility Open workout' }).getAttribute('href')).toBe('#/train/mobility');
+    expect(within(breakdown).getByText('3 × 5 reps · bodyweight')).toBeTruthy();
+    expect(within(breakdown).getByText('Tendon glides')).toBeTruthy();
+    expect(within(breakdown).getByText('Isometric squeeze')).toBeTruthy();
+    expect(within(breakdown).getByText('6 × 10 s')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Routines' })).toBeNull();
+    await click('Required workout');
+    expect(screen.queryByRole('region', { name: 'Required workout' })).toBeNull();
+  });
+
+  it('starts on Today with tasks and three widgets, and shares updates with the separate journal', async () => {
+    window.history.replaceState(null, '', '/');
+    render(<App />);
+    expect(screen.getByRole('main', { name: 'Today' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Due today' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Finger rehab' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Sleep' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Last seven days' })).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Journal title')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'The high heel worked' })).toBeNull();
+    await click('Complete Read for today');
+    await navigate();
+    const today = screen.getByLabelText('Journal title').closest('article')!;
+    expect(within(today).getByRole('region', { name: 'Today’s tasks' })).toBeTruthy();
+    expect(within(today).getByRole('button', { name: 'read 20 min' })).toBeTruthy();
+    expect(within(today).queryByText('read · unlogged')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Sleep' })).toBeNull();
+    await change('Journal title', 'Today’s notes');
+    const alcohol = within(within(today).getByText('alcohol-free day · unlogged').closest('div')!);
+    await click('Skip', alcohol);
+    expect(alcohol.getByRole('button', { name: 'Undo skipping Alcohol-free day' })).toBeTruthy();
+    await act(async () => {
+      window.history.replaceState(null, '', '/#/today');
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    await navigate();
+    expect((screen.getByLabelText('Journal title') as HTMLInputElement).value).toBe('Today’s notes');
+    expect(screen.getByRole('button', { name: 'Undo skipping Alcohol-free day' })).toBeTruthy();
+    expect(saved().checkIns.filter(c => c.routineId === 'read' && c.date === '2026-11-16')).toHaveLength(1);
+  });
+
+  it('scopes Climbing tasks and days by logged activity while preserving the full journal context', async () => {
+    const sleep = seedDays[0].records.find(r => r.kind === 'sleep')!;
+    const climb = seedDays[0].records.find(r => r.kind === 'climb')!;
+    const entry = (title: string) => ({ title, body: { type: 'doc' as const, content: [] } });
+    const base = { types: [] as Day['types'], metrics: {}, visibleMetrics: [] as Day['visibleMetrics'] };
+    localStorage.setItem('pincht.journal.v1', JSON.stringify([
+      { ...base, date: '2026-11-15', records: [climb, sleep], entry: entry('Climbing notes') },
+      { ...base, date: '2026-11-14', records: [sleep], types: ['climb'], entry: entry('Rest notes') },
+      { ...base, date: '2026-11-13', records: [], entry: { title: 'Remembering a climb', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'recordPill', attrs: { id: climb.id, label: climb.title, category: 'climb' } }] }] } } },
+    ]));
+    window.history.replaceState(null, '', '/#/climbing');
+    render(<App />);
+    const due = within(screen.getByRole('region', { name: 'Due today' }));
+    expect(due.getByRole('link', { name: /Train/ })).toBeTruthy();
+    expect(due.queryByText(/Read|Alcohol/)).toBeNull();
+    expect(due.queryByText(/unlogged/)).toBeNull();
+    expect(screen.getByRole('region', { name: 'Finger rehab' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Climbing' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Sleep' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Climbing notes' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Rest notes' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Remembering a climb' })).toBeNull();
+    expect(screen.queryByPlaceholderText('Journal title')).toBeNull();
+    const written = within(screen.getByRole('link', { name: 'Climbing notes' }).closest('article')!);
+    expect(written.getByRole('link', { name: /sleep/ })).toBeTruthy();
+    await click(/^\d+ records$/, written);
+    expect(written.getByRole('region', { name: 'Day records' })).toBeTruthy();
+    await navigate();
+    expect(screen.getByRole('link', { name: 'Rest notes' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Remembering a climb' })).toBeTruthy();
+  });
+
   it('expands and collapses a written entry’s records inline without opening the journal entry', async () => {
     render(<Home />);
     const entry = screen.getByRole('link', { name: 'The high heel worked' }).closest('article')!;
@@ -100,7 +184,7 @@ describe('Today and journal flows', () => {
   });
 
   it('keeps an earlier routine in Due today after skipping so it can be undone', async () => {
-    const { unmount } = render(<Home />);
+    const { unmount } = render(<Home screen="today" />);
     const due = within(screen.getByRole('region', { name: 'Due today' }));
     expect(due.getByText('Read · Sun 15')).toBeTruthy();
     await click('Skip', due);
@@ -112,7 +196,7 @@ describe('Today and journal flows', () => {
     await click('Skip', due);
     unmount();
 
-    render(<Home />);
+    render(<Home screen="today" />);
     const returned = within(screen.getByRole('region', { name: 'Due today' }));
     expect(returned.queryByRole('button', { name: /Undo skipping/ })).toBeNull();
     expect(returned.getByText('Read · Thu 12')).toBeTruthy();
@@ -126,7 +210,7 @@ describe('Today and journal flows', () => {
     const { container } = render(<Home entryDate={date} />);
     const summary = within(container.querySelector('.entry-summary')! as HTMLElement);
     for (const [label, href] of [
-      ['climb', '#/climbs'], ['rehab', '#/train/pulley-rehab'], ['training', '#/train'],
+      ['climb', '#/climbing'], ['rehab', '#/train/pulley-rehab'], ['training', '#/train'],
       ['sleep 7h 12m', '#/metrics'], ['72.4 kg', '#/metrics'],
     ]) {
       expect(summary.getByRole('link', { name: label }).getAttribute('href')).toBe(href);
@@ -244,9 +328,10 @@ describe('Today and journal flows', () => {
     expect(journal().find(day => day.date === '2026-11-13')?.entry).toBeUndefined();
   });
   it('quick completion saves usual reading time without invented pages and collapses after all daily routines', async () => {
-    render(<Home />);
-    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link').map(link => link.textContent)).toEqual(['Today', 'Train', 'Climbs', 'Metrics']);
-    expect(screen.getByRole('link', { name: /0 of 3 workouts/ }).getAttribute('href')).toBe('#/train');
+    render(<Home screen="today" />);
+    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link').map(link => link.textContent)).toEqual(['Today', 'Journal', 'Climbing', 'Train']);
+    expect(screen.getByRole('img', { name: '0 of 3 workouts' })).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Due today' })).getByRole('link', { name: /Train.*0 of 3 this week/ }).getAttribute('href')).toBe('#/train');
     await click('Complete Read for today');
     expect(saved().checkIns.find(c => c.routineId === 'read' && c.date === '2026-11-16')).toMatchObject({ minutes: 20, bookId: 'piranesi' });
     expect(saved().checkIns.find(c => c.routineId === 'read' && c.date === '2026-11-16')?.page).toBeUndefined();
@@ -259,7 +344,7 @@ describe('Today and journal flows', () => {
   });
 
   it('logs reading against yesterday and updates the book while leaving today due', async () => {
-    render(<Home />);
+    render(<Home screen="today" />);
     await click('Open Read');
     expect(screen.queryByText('Awaiting UI/UX pass')).toBeNull();
     await click(/Yesterday · Sun 15/);
@@ -274,7 +359,7 @@ describe('Today and journal flows', () => {
   });
 
   it('marks the additional book screen as in development and saves a newly selected book', async () => {
-    render(<Home />);
+    render(<Home screen="today" />);
     await click('Open Read'); await click('Change');
     expect(screen.getByText('In development')).toBeTruthy();
     expect(screen.getByText('Awaiting UI/UX pass')).toBeTruthy();
@@ -373,7 +458,7 @@ describe('Today and journal flows', () => {
     });
     expect(screen.getByRole('main', { name: 'Expanded journal entry' })).toBeTruthy();
     expect((screen.getByLabelText('Journal title') as HTMLInputElement).value).toBe('The high heel worked');
-    expect(screen.getByRole('link', { name: 'Back to Today' }).getAttribute('href')).toBe('#/journal');
+    expect(screen.getByRole('link', { name: 'Back to Journal' }).getAttribute('href')).toBe('#/journal');
     expect(screen.queryByRole('navigation')).toBeNull();
     expect(screen.queryByRole('button', { name: 'New entry' })).toBeNull();
     expect(document.querySelectorAll('.day-record')).toHaveLength(6);
@@ -382,10 +467,11 @@ describe('Today and journal flows', () => {
   it('keeps additional destinations visibly in development', () => {
     const { rerender } = render(<LibraryPage kind="climbs" />);
     expect(screen.getByText('Awaiting UI/UX pass')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Climbs' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('link', { name: 'Climbing' }).getAttribute('aria-current')).toBe('page');
     rerender(<LibraryPage kind="metrics" />);
     expect(screen.getByText('In development')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Metrics' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByRole('link', { name: 'Metrics' })).toBeNull();
+    expect(screen.getByRole('navigation', { name: 'Primary' }).querySelector('[aria-current]')).toBeNull();
   });
 
   it('does not consume the welcome-back visit when opening an additional destination first', () => {
