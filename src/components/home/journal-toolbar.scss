@@ -1,0 +1,52 @@
+.journal-toolbar.tiptap-toolbar[data-variant='floating'] {
+  position: fixed;
+  z-index: 30;
+  left: 50%;
+  bottom: calc(var(--keyboard-height, 0px) + var(--journal-dock-bottom));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 16px);
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  &[data-visible='false'] { visibility: hidden; pointer-events: none; }
+  .tiptap-toolbar-group { flex-shrink: 0; }
+  .tiptap-separator { background: var(--color-border); }
+  .tiptap-button {
+    --tt-button-default-icon-color: var(--color-text);
+    --tt-button-hover-icon-color: var(--color-text);
+    --tt-button-active-icon-color: var(--color-text);
+    --tt-button-active-icon-color-emphasized: var(--color-text);
+    --tt-button-active-icon-color-subdued: var(--color-text);
+    --tt-button-disabled-icon-color: var(--color-text-muted);
+    flex-shrink: 0;
+    min-width: 44px;
+    height: 44px;
+    padding: 10px;
+    border-radius: 8px;
+    color: var(--color-text);
+    background: transparent;
+    svg { color: inherit; }
+    &:hover:not(:disabled), &[data-active-state='on']:not(:disabled) {
+      background: var(--color-sidebar);
+      color: var(--color-text);
+      svg { color: inherit; }
+    }
+    &:focus-visible, &[data-focus-visible='true'] {
+      outline: 2px solid var(--color-text);
+      outline-offset: -3px;
+    }
+    &:disabled { color: var(--color-text-muted); background: transparent; svg { color: inherit; } }
+  }
+}
+
+// Keep the entry's Save button clear of the floating controls.
+.journal-sheet:has(.journal-toolbar) {
+  padding-bottom: calc(60px + var(--journal-dock-bottom));
+}

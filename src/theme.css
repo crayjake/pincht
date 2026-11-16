@@ -35,6 +35,9 @@
     --color-sleep-fg: light-dark(#215c50, #ade3d6);
     --color-goal-bg: light-dark(#eee3f5, #3d2f46);
     --color-goal-fg: light-dark(#643a7d, #e7c8f2);
+    --color-habit-bg: light-dark(#f4ebd0, #3d3618);
+    --color-habit-fg: light-dark(#6a5212, #ecd990);
+    --color-track: light-dark(#e9e6dd, #42463b);
 
     /* Sleep-stage chart */
     --color-sleep-light: light-dark(#a597bf, #8a7da1);

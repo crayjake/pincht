@@ -1,4 +1,4 @@
-export type Category = 'climb' | 'rehab' | 'training' | 'sleep' | 'goal';
+export type Category = 'climb' | 'rehab' | 'training' | 'sleep' | 'goal' | 'habit';
 export type DayType = Category | 'rest';
 export type SleepStage = 'deep' | 'rem' | 'light' | 'awake';
 export interface SleepNight {
@@ -37,11 +37,25 @@ export interface Day {
 }
 export interface ChartResource { id: string; kind: 'chart'; category: Category; title: string }
 export type PillResource = JournalRecord | ChartResource;
+export function entryRecords(day: Day, resources: PillResource[]): PillResource[] {
+  const records = new Map<string, PillResource>(day.records.map(record => [record.id, record]));
+  const byId = new Map(resources.map(record => [record.id, record]));
+  function visit(nodes: RichNode[]) {
+    for (const node of nodes) {
+      if (node.type === 'recordPill') {
+        const record = byId.get(node.attrs.id);
+        if (record && !records.has(record.id)) records.set(record.id, record);
+      } else if ('content' in node && node.content) visit(node.content);
+    }
+  }
+  visit(day.entry?.body.content ?? []);
+  return [...records.values()];
+}
 export const categories: Category[] = ['climb', 'rehab', 'training', 'sleep', 'goal'];
-export interface TimelineFilter { categories: Category[]; from: string; to: string }
-export const emptyFilter: TimelineFilter = { categories: [], from: '', to: '' };
+export interface TimelineFilter { categories: Category[]; from: string; to: string; routines: boolean; unlogged: boolean; entriesOnly: boolean }
+export const emptyFilter: TimelineFilter = { categories: [], from: '', to: '', routines: false, unlogged: false, entriesOnly: false };
 export const categoryLabels: Record<Category, string> = {
-  climb: 'Climbing', rehab: 'Rehab', training: 'Training', sleep: 'Sleep', goal: 'Goals',
+  climb: 'Climb', rehab: 'Rehab', training: 'Training', sleep: 'Sleep', goal: 'Goal', habit: 'Routines',
 };
 export function duration(minutes: number, padded = false) {
   const rounded = Math.round(minutes);
@@ -95,6 +109,21 @@ const routineSeeds: [number, DayType[], number, number, number, number][] = [
   [6, ['rest'], 464, 72.8, 89, 107], [5, ['rehab'], 437, 73, 82, 98],
   [4, ['climb', 'training'], 446, 72.8, 85, 104], [3, ['rehab'], 422, 72.9, 78, 92], [2, ['rest'], 458, 73.1, 87, 102],
 ];
+const sampleEntries: Record<number, Entry> = {
+  13: { title: 'Stopped while the skin was good', body: { type: 'doc', content: [
+    { type: 'paragraph', content: [text('Kept the '), pill('climb-13', 'Boulder session', 'climb'), text(' short today. The steeper problems felt good, but the small holds were getting sore. Finished with '), pill('training-13', 'Core + shoulders', 'training'), text(' rather than squeezing in another climb.')] },
+  ] } },
+  10: { title: 'Getting comfortable on the slabs', body: { type: 'doc', content: [
+    { type: 'paragraph', content: [text('Spent most of the '), pill('climb-10', 'Boulder session', 'climb'), text(' on balance and quiet feet. Repeating the easier problems helped more than chasing a harder grade.')] },
+    { type: 'paragraph', content: [text('Try the same warm-up next time, then come back to the blue volume problem.')] },
+  ] } },
+  7: { title: 'A few good attempts', body: { type: 'doc', content: [
+    { type: 'paragraph', content: [text('No big sends in the '), pill('climb-7', 'Boulder session', 'climb'), text(', but the moves are starting to connect. Taking longer rests made the last attempts much better than the first.')] },
+  ] } },
+  4: { title: 'Back into the rhythm', body: { type: 'doc', content: [
+    { type: 'paragraph', content: [text('An easy '), pill('climb-4', 'Boulder session', 'climb'), text(' to get moving again, followed by '), pill('training-4', 'Core + shoulders', 'training'), text('. Fingers felt quiet throughout. Keep the next session at the same intensity.')] },
+  ] } },
+};
 export const seedDays: Day[] = [{
   date: '2026-11-15', types: ['climb', 'rehab', 'training'], metrics: { sleep: asleepMinutes(todayNight), weight: 72.4 }, visibleMetrics: ['sleep', 'weight'],
   entry: { title: 'The high heel worked', body: { type: 'doc', content: [
@@ -111,7 +140,7 @@ export const seedDays: Day[] = [{
     ...(day === 13 && kind === 'climb' ? { note: 'Skin gave out early, so I stopped before the crimpy problems.' } : {}),
   }));
   records.push({ id: `sleep-${day}`, kind: 'sleep', title: 'Sleep', metric: duration(asleepMinutes(night), true), meta: '', sleep: night });
-  return { date, types, metrics: { sleep: asleepMinutes(night), weight }, visibleMetrics: ['sleep', 'weight'], records };
+  return { date, types, metrics: { sleep: asleepMinutes(night), weight }, visibleMetrics: ['sleep', 'weight'], entry: sampleEntries[day], records };
 })];
 export const chartResources: ChartResource[] = [
   { id: 'chart-rehab', kind: 'chart', category: 'rehab', title: 'Finger rehab load chart' },
@@ -154,8 +183,12 @@ export function dayMatches(day: Day, query: string, selected: Category[], from: 
   return searchable.includes(query.trim().toLocaleLowerCase());
 }
 
-function richText(nodes: RichNode[]): string[] {
+export function richText(nodes: RichNode[]): string[] {
   return nodes.flatMap(node => node.type === 'text' ? [node.text] : node.type === 'recordPill' ? [node.attrs.label] : richText(node.content ?? []));
+}
+
+export function hasJournalContent(entry?: Entry) {
+  return !!entry && !!(entry.title.trim() || richText(entry.body.content).join('').trim());
 }
 
 export function getNights(days: Day[]) {

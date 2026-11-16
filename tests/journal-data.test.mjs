@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { asleepMinutes, dayMatches, getNights, groupDays, rangeLabel, rehabLoads, seedDays, stageTotals } from '../src/components/home/journal-data.ts';
+import { asleepMinutes, dayMatches, entryRecords, getNights, groupDays, rangeLabel, rehabLoads, seedDays, stageTotals } from '../src/components/home/journal-data.ts';
 
 const day = (date, entry) => ({ date, types: [], metrics: {}, visibleMetrics: [], records: [], entry });
 const entry = { title: 'Written day', body: { type: 'doc', content: [] } };
 
-test('sample timeline groups routine days by calendar week', () => {
-  const groups = groupDays(seedDays);
+test('sample timeline includes writing in both earlier weeks and groups unwritten days by calendar week', () => {
+  assert.deepEqual(seedDays.filter(day => day.entry).map(day => day.date), ['2026-11-15', '2026-11-13', '2026-11-10', '2026-11-07', '2026-11-04']);
+  const groups = groupDays(seedDays.map((day, index) => index ? { ...day, entry: undefined } : day));
   assert.equal(groups[0].kind, 'entry');
   assert.deepEqual(groups.slice(1).map(group => group.days.length), [6, 7]);
   assert.equal(rangeLabel(groups[1].days), 'Mon 9 – Sat 14 Nov');
@@ -56,4 +57,19 @@ test('search includes nested rich text, record links, notes, categories, and dat
   assert.ok(dayMatches(seedDays[0], 'hips in', ['climb'], '2026-11-15', '2026-11-15'));
   assert.equal(dayMatches(seedDays[0], '', [], '', '2026-11-14'), false);
   assert.equal(dayMatches(seedDays[1], '', ['goal'], '', ''), false);
+});
+
+
+test('entry records collect nested references after daily logs, ignoring duplicates and missing resources', () => {
+  const logged = seedDays[0].records[0];
+  const referenced = seedDays[0].records[1];
+  const chart = { id: 'chart', kind: 'chart', category: 'sleep', title: 'Sleep chart' };
+  const ref = id => ({ type: 'recordPill', attrs: { id, label: id, category: 'sleep' } });
+  const item = { ...day('2026-11-16', { ...entry, body: { type: 'doc', content: [
+    { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [
+      ref(logged.id), ref(referenced.id), ref(referenced.id), ref(chart.id), ref('missing'),
+    ] }] }] },
+  ] } }), records: [logged] };
+  assert.deepEqual(entryRecords(item, [logged, referenced, chart]), [logged, referenced, chart]);
+  assert.deepEqual(entryRecords({ ...item, entry: undefined }, [chart]), [logged]);
 });

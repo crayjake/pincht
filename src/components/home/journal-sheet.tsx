@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { Icon } from './journal-icons';
-export function Sheet({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+import { InDevelopment } from '../app-navigation';
+export function Sheet({ title, children, onClose, eyebrow, development = false }: { title: string; children: ReactNode; onClose: () => void; eyebrow?: string; development?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   const id = useId();
   useEffect(() => {
@@ -14,6 +15,8 @@ export function Sheet({ title, children, onClose }: { title: string; children: R
   }, []);
   return <dialog ref={ref} className="journal-sheet" aria-labelledby={id} onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === event.currentTarget && event.clientY < event.currentTarget.getBoundingClientRect().top) onClose(); }}>
     <div className="sheet-handle" aria-hidden="true" />
+    {development && <InDevelopment />}
+    {eyebrow && <div className="eyebrow sheet-eyebrow">{eyebrow}</div>}
     <header className="sheet-heading"><h2 id={id}>{title}</h2><button type="button" className="icon-button" aria-label="Close sheet" onClick={onClose}><Icon name="close" /></button></header>
     <div className="sheet-content">{children}</div>
   </dialog>;

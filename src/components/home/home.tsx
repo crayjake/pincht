@@ -1,148 +1,168 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { loadSessions, mergeWorkoutDays } from '../../workouts/storage';
 import './home.scss';
-import { HomeFilters, JournalDock } from './home-filters';
+import { HomeFilters } from './home-filters';
 import { JournalBody } from './journal-body';
-import { categories, chartResources, dayMatches, duration, emptyFilter, groupDays, getNights, localDate, rangeLabel, seedDays, shortDate, type Category, type Day, type DayType, type Entry, type PillResource, type RichBody } from './journal-data';
+import { chartResources, duration, emptyFilter, entryRecords, groupDays, getNights, hasJournalContent, localDate, rangeLabel, seedDays, shortDate, type Day, type DayType, type Entry, type PillResource, type RichBody } from './journal-data';
 import { Icon } from './journal-icons';
 import { DayRecords, RecordItem } from './journal-records';
 import { Sheet } from './journal-sheet';
-import { Holds, JournalWidgets, RehabChart, SleepChart } from './journal-widgets';
+import { JournalWidgets, RehabChart, SleepChart } from './journal-widgets';
+import { PrimaryNav } from '../app-navigation';
+import { DueToday, HabitRows } from '../../routines/due-today';
+import { addDays, adherence, withRoutineDays, type Routine } from '../../routines/data';
+import { useRoutines } from '../../routines/use-routines';
+import { AlcoholSheet, ReadingSheet, RoutinesSheet, WelcomeSheet } from '../../routines/routine-sheets';
+import { dragLoads } from '../../routines/rehab-loads';
+import { JournalSearch } from './journal-search';
+import { daySummary, type SummaryCategory } from './journal-summary';
 
 const storageKey = 'pincht.journal.v1';
+const sampleEntriesKey = 'pincht.journal.sample-entries';
 const emptyBody: RichBody = { type: 'doc', content: [{ type: 'paragraph' }] };
+const summaryRoutes: Partial<Record<SummaryCategory, string>> = {
+  climb: '#/climbs', rehab: '#/train/pulley-rehab', training: '#/train', sleep: '#/metrics', weight: '#/metrics',
+};
 function loadDays(): Day[] {
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(storageKey) || 'null');
-    if (Array.isArray(saved) && saved.length && saved.every(day => typeof day.date === 'string' && Array.isArray(day.types) && Array.isArray(day.records) && Array.isArray(day.visibleMetrics) && day.metrics && (!day.entry || (typeof day.entry.title === 'string' && day.entry.body?.type === 'doc' && Array.isArray(day.entry.body.content))))) return saved as Day[];
+    if (Array.isArray(saved) && saved.length && saved.every(day => typeof day.date === 'string' && Array.isArray(day.types) && Array.isArray(day.records) && Array.isArray(day.visibleMetrics) && day.metrics && (!day.entry || (typeof day.entry.title === 'string' && day.entry.body?.type === 'doc' && Array.isArray(day.entry.body.content))))) {
+      // Add the new sample writing once, preserving saved writing and records.
+      const addSamples = !localStorage.getItem(sampleEntriesKey);
+      return mergeWorkoutDays((saved as Day[]).map(day => {
+        const sample = addSamples ? seedDays.find(seed => seed.date === day.date)?.entry : undefined;
+        return { ...day, entry: hasJournalContent(day.entry) ? day.entry : sample };
+      }));
+    }
   } catch { /* A damaged or unavailable store falls back to the sample journal. */ }
-  return seedDays;
+  return mergeWorkoutDays(seedDays);
 }
 function TypeWords({ types }: { types: DayType[] }) {
   return <>{types.map((type, i) => <span key={type}>{i > 0 && <span className="type-join"> + </span>}<span data-category={type}>{type}</span></span>)}</>;
 }
-function SummaryEditor({ day, onChange, onClose }: { day: Day; onChange: (day: Day) => void; onClose: () => void }) {
-  const types: DayType[] = ['climb', 'rehab', 'training', 'rest'];
-  return <Sheet title="Day summary" onClose={onClose}>
-    <fieldset><legend>Day types</legend><div className="category-choices">{types.map(type => <button type="button" className="category-choice" data-category={type} aria-pressed={day.types.includes(type)} key={type} onClick={() => {
-      const next = day.types.includes(type) ? day.types.filter(t => t !== type) : type === 'rest' ? ['rest'] as DayType[] : [...day.types.filter(t => t !== 'rest'), type];
-      onChange({ ...day, types: next });
-    }}>{type}</button>)}</div></fieldset>
-    <fieldset><legend>Show metrics</legend>{(['sleep', 'weight'] as const).map(metric => <label className="metric-choice" key={metric}><span>{metric === 'sleep' ? 'Sleep duration' : 'Body weight'}</span><input type="checkbox" checked={day.visibleMetrics.includes(metric)} onChange={() => onChange({ ...day, visibleMetrics: day.visibleMetrics.includes(metric) ? day.visibleMetrics.filter(m => m !== metric) : [...day.visibleMetrics, metric] })} /></label>)}</fieldset>
-    <button className="primary-button full-width" type="button" onClick={onClose}>Done</button>
-  </Sheet>;
-}
-function NewEntry({ days, resources, onSave, onClose, onOpen }: { days: Day[]; resources: PillResource[]; onOpen: (record: PillResource) => void; onSave: (date: string, entry: Entry) => void; onClose: () => void }) {
-  const [date, setDate] = useState(localDate);
-  const existing = days.find(day => day.date === date)?.entry;
-  const [title, setTitle] = useState(existing?.title ?? '');
-  const [body, setBody] = useState<RichBody>(existing?.body ?? emptyBody);
-  function changeDate(next: string) {
-    setDate(next);
-    const entry = days.find(day => day.date === next)?.entry;
-    setTitle(entry?.title ?? ''); setBody(entry?.body ?? emptyBody);
-  }
-  return <Sheet title={existing ? 'Edit entry' : 'New entry'} onClose={onClose}>
-    <form className="entry-form" onSubmit={event => { event.preventDefault(); if (date && title.trim()) onSave(date, { title: title.trim(), body }); }}>
-      <label>Date<input type="date" value={date} required onChange={event => changeDate(event.target.value)} /></label>
-      <label>Title<input type="text" value={title} placeholder="Give the day a title" required onChange={event => setTitle(event.target.value)} /></label>
-      <p className="composer-hint">Write about your day. Type @ to link a record or chart.</p>
-      <JournalBody key={date} body={body} resources={resources} onChange={setBody} onOpen={onOpen} label="New entry body" />
-      <button type="submit" className="primary-button full-width" disabled={!date || !title.trim()}>Save entry</button>
-    </form>
-  </Sheet>;
-}
-export default function Home() {
-  const [days, setDays] = useState(loadDays);
+export default function Home({ entryDate }: { entryDate?: string }) {
+  const [baseDays, setDays] = useState(loadDays);
+  const routines = useRoutines(!entryDate);
+  const { data, update, recentSkips } = routines;
+  const [sessions] = useState(() => loadSessions());
+  const today = localDate();
+  const days = useMemo(() => {
+    const withToday = baseDays.some(day => day.date === today) ? baseDays : [...baseDays, { date: today, types: [], records: [], metrics: {}, visibleMetrics: [] }];
+    return withRoutineDays(withToday, data, today);
+  }, [baseDays, data, today]);
+  const loads = useMemo(() => dragLoads(sessions), [sessions]);
   const [storageError, setStorageError] = useState(false);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [filter, setFilter] = useState(emptyFilter);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [summaryDate, setSummaryDate] = useState<string | null>(null);
-  const [newOpen, setNewOpen] = useState(false);
   const [detail, setDetail] = useState<PillResource | null>(null);
+  const [routineDetail, setRoutineDetail] = useState<{ routine: Routine; date: string } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [widgetsOpen, setWidgetsOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-  const [sticky, setSticky] = useState<{ title: string; date?: string; types?: Category[] } | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const journalHeading = useRef<HTMLElement>(null);
   useEffect(() => {
     let failed = false;
-    try { localStorage.setItem(storageKey, JSON.stringify(days)); }
-    catch { failed = true; }
+    try { localStorage.setItem(storageKey, JSON.stringify(baseDays)); localStorage.setItem(sampleEntriesKey, 'true'); } catch { failed = true; }
     queueMicrotask(() => setStorageError(failed));
-  }, [days]);
-  const resources = useMemo(() => [...chartResources, ...days.flatMap(day => day.records)], [days]);
-  // Group before filtering so a written day or a calendar boundary always breaks a routine run.
-  const groups = useMemo(() => groupDays(days).flatMap(group => {
-    if (group.kind === 'entry') return dayMatches(group.day, query, filter.categories, filter.from, filter.to) ? [group] : [];
-    return groupDays(group.days.filter(day => dayMatches(day, query, filter.categories, filter.from, filter.to)));
-  }), [days, query, filter]);
+  }, [baseDays]);
   useEffect(() => {
-    let frame = 0;
-    function update() {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const top = parseFloat(getComputedStyle(document.querySelector('.today-page')!).paddingTop) + 36;
-        const sections = [...document.querySelectorAll<HTMLElement>('[data-timeline-group]')];
-        const active = sections.reverse().find(section => {
-          const rect = section.getBoundingClientRect();
-          const trigger = section.querySelector('h1')?.getBoundingClientRect().top ?? rect.top;
-          return trigger < top + (section.classList.contains('routine-run') ? 20 : 0) && rect.bottom > top;
-        });
-        setSticky(active ? { title: active.dataset.stickyTitle!, date: active.dataset.stickyDate, types: active.dataset.stickyTypes?.split(',').filter(Boolean) as Category[] | undefined } : null);
-      });
+    function scroll() {
+      const y = window.scrollY;
+      const heading = journalHeading.current;
+      const bounds = heading?.getBoundingClientRect();
+      const pinTop = heading ? parseFloat(getComputedStyle(heading).top) || 50 : 50;
+      setScrolled(entryDate ? y > 120 : !!bounds?.height && bounds.top <= pinTop);
     }
-    window.addEventListener('scroll', update, { passive: true }); window.addEventListener('resize', update); update();
-    return () => { cancelAnimationFrame(frame); window.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
-  }, [groups, expanded]);
-  function updateDay(day: Day) { setDays(current => current.map(d => d.date === day.date ? day : d)); }
+    scroll();
+    window.addEventListener('scroll', scroll, { passive: true });
+    window.addEventListener('resize', scroll);
+    return () => { window.removeEventListener('scroll', scroll); window.removeEventListener('resize', scroll); };
+  }, [entryDate, searchOpen]);
+  useEffect(() => { document.title = `${entryDate ? days.find(d => d.date === entryDate)?.entry?.title || 'Journal' : searchOpen ? 'Search' : 'Today'} · pincht`; }, [entryDate, searchOpen, days]);
+  const resources = useMemo(() => [...chartResources, ...days.flatMap(day => day.records)], [days]);
+  const groups = useMemo(() => {
+    // Empty composers are a display state, never a saved journal entry.
+    const visible = entryDate ? days.filter(day => day.date === entryDate) : days;
+    return groupDays(visible.map(day => day.date === today || entryDate ? { ...day, entry: day.entry ?? { title: '', body: emptyBody } } : day));
+  }, [days, entryDate, today]);
+  function updateDay(day: Day) {
+    const clean = { ...day, entry: hasJournalContent(day.entry) ? day.entry : undefined, records: day.records.filter(record => record.kind !== 'habit') };
+    setDays(current => current.some(d => d.date === day.date) ? current.map(d => d.date === day.date ? clean : d) : [...current, clean]);
+  }
+  function updateEntry(day: Day, entry: Entry) {
+    updateDay({ ...day, entry });
+  }
   function toggle(date: string) { setExpanded(current => { const next = new Set(current); if (next.has(date)) next.delete(date); else next.add(date); return next; }); }
-  const summaryDay = days.find(day => day.date === summaryDate);
-  const filtered = !!(filter.categories.length || filter.from || filter.to);
+  function openRoutine(routine: Routine, date: string) {
+    if (routine.kind === 'rehab' || routine.kind === 'training') { location.hash = routine.kind === 'rehab' ? '/train/pulley-rehab' : '/train'; return; }
+    setRoutineDetail({ routine, date });
+  }
+  function closeSearch() { setSearchOpen(false); setQuery(''); setFilter(emptyFilter); window.scrollTo(0, 0); }
+  const focused = days.find(d => d.date === entryDate);
+  const searchActions = <><button className="icon-button feed-search-trigger" aria-label="Search journal" onClick={() => { setSearchOpen(true); window.scrollTo(0, 0); }}><Icon name="search" size={20} /><span>Search journal</span></button><button className="icon-button feed-filter-trigger" aria-label="Filter journal" onClick={() => { setSearchOpen(true); setFilterOpen(true); window.scrollTo(0, 0); }}><Icon name="filter" size={20} /></button></>;
   return <>
-    {sticky && <header className={`sticky-journal-header${sticky.date ? ' sticky-entry-header' : ''}`} aria-hidden="true">{sticky.date ? <><Holds categories={sticky.types ?? []} overlap /><span className="sticky-title">{sticky.title}</span><span className="sticky-date">{sticky.date}</span></> : <span>{sticky.title}</span>}</header>}
-    <main className="today-page" aria-label="Today’s climbing journal">
-      <JournalWidgets days={days} />
-      {storageError && <p role="status" className="storage-notice">Changes are available for this visit. Your browser could not save them.</p>}
-      <div className="journal-timeline">
-        {groups.map(group => {
-          if (group.kind === 'routine') {
-            const id = group.days[0].date;
-            return <section className="routine-run" data-timeline-group key={`routine-${id}`} data-sticky-title={shortDate(id, { month: 'long', year: 'numeric' })}>
-              <header className="routine-range"><span>{rangeLabel(group.days)}</span><span>{group.days.length} {group.days.length === 1 ? 'day' : 'days'}</span></header>
-              <div className="routine-card">{group.days.map(day => <div className={`routine-day${expanded.has(day.date) ? ' is-expanded' : ''}`} key={day.date}>
-                <button type="button" className="routine-row" aria-label={`${shortDate(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}, ${day.types.join(' and ')}, ${day.records.length} records`} aria-expanded={expanded.has(day.date)} aria-controls={`records-${day.date}`} onClick={() => toggle(day.date)}>
-                  <span className="routine-date">{shortDate(day.date, { weekday: 'short' })} {shortDate(day.date, { day: 'numeric' })}</span><span className="routine-types"><TypeWords types={day.types} /></span><span className="routine-sleep">{day.metrics.sleep !== undefined ? duration(day.metrics.sleep, true) : '—'}</span><span className="routine-weight">{day.metrics.weight !== undefined ? `${day.metrics.weight.toFixed(1)} kg` : '—'}</span>
-                </button>
-                {expanded.has(day.date) && <DayRecords records={day.records} onOpen={setDetail} compact id={`records-${day.date}`} />}
-              </div>)}</div>
-            </section>;
-          }
-          const { day } = group;
-          const dayCategories = day.types.filter((type): type is Category => categories.includes(type as Category));
-          return <article className="written-entry" key={day.date} data-timeline-group data-sticky-title={day.entry!.title} data-sticky-date={shortDate(day.date, { day: 'numeric', month: 'short' })} data-sticky-types={dayCategories.join(',')}>
-            <div className="entry-date"><Holds categories={dayCategories} overlap /><span>{day.date === localDate() && <><strong>Today</strong> · </>}{shortDate(day.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
-            <h1>{day.entry!.title}</h1>
-            <button type="button" className="entry-summary" aria-label={`Edit summary for ${shortDate(day.date, { day: 'numeric', month: 'long' })}`} onClick={() => setSummaryDate(day.date)}>
-              <span><TypeWords types={day.types} /></span>{day.visibleMetrics.filter(metric => day.metrics[metric] !== undefined).map(metric => <span className="summary-metric" key={metric}><span aria-hidden="true"> · </span><span data-category={metric === 'sleep' ? 'sleep' : undefined}>{metric === 'sleep' ? duration(day.metrics.sleep!, true) : `${day.metrics.weight!.toFixed(1)} kg`}</span></span>)}
-            </button>
-            <JournalBody body={day.entry!.body} resources={resources} onChange={body => updateDay({ ...day, entry: { ...day.entry!, body } })} onOpen={setDetail} />
-            <button type="button" className="records-toggle" aria-expanded={expanded.has(day.date)} aria-controls={`records-${day.date}`} onClick={() => toggle(day.date)}><span className="records-toggle-inner"><Holds categories={day.records.map(record => record.kind)} /><span>{day.records.length} records</span><Icon name="chevron" size={16} /></span></button>
-            {expanded.has(day.date) && <DayRecords records={day.records} onOpen={setDetail} id={`records-${day.date}`} />}
-          </article>;
-        })}
-        {!groups.length && <p className="empty-timeline" role="status">No days match your search and filters.</p>}
-      </div>
-    </main>
-    <JournalDock query={query} searchOpen={searchOpen} setSearchOpen={setSearchOpen} onQuery={setQuery} onFilter={() => setFilterOpen(true)} onNew={() => setNewOpen(true)} filtered={filtered} />
+    {searchOpen && !entryDate ? <JournalSearch days={days} data={data} query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} onAllFilters={() => setFilterOpen(true)} onClose={closeSearch} onOpen={setDetail} onRoutine={openRoutine} /> : <>
+      {entryDate && <header className="expanded-header"><a className="icon-button" href="#/journal" aria-label="Back to Today"><Icon name="back" /></a><span className="sticky-title">{scrolled ? focused?.entry?.title || 'Journal' : 'Journal'}</span>{scrolled && <span className="sticky-date">{shortDate(entryDate, { day: 'numeric', month: 'short' })}</span>}</header>}
+      <main className={`today-page${entryDate ? ' expanded-page' : ''}`} aria-label={entryDate ? 'Expanded journal entry' : 'Today’s climbing journal'}>
+        {!entryDate && <><DueToday data={data} recentSkips={recentSkips} sessions={sessions} onChange={update} onOpen={openRoutine} onSettings={() => setSettingsOpen(true)} /><JournalWidgets days={days} loads={loads} visible={data.widgets} onConfigure={() => setWidgetsOpen(true)} /><header ref={journalHeading} className={`journal-heading${scrolled ? ' is-pinned' : ''}`}><span className="eyebrow muted">Journal</span><div>{searchActions}</div></header></>}
+        {(storageError || routines.error) && <p role="status" className="storage-notice">{routines.error || 'Changes are available for this visit. Your browser could not save them.'}</p>}
+        <div className="journal-timeline">
+          {groups.map(group => {
+            if (group.kind === 'routine') {
+              const id = group.days[0].date;
+              return <section className="routine-run" key={`routine-${id}`}>
+                <header className="routine-range"><span>{rangeLabel(group.days)}</span><span>{group.days.length} {group.days.length === 1 ? 'day' : 'days'}</span></header>
+                <p className="run-adherence">{adherence(data, group.days.map(d => d.date))}</p>
+                <div className="routine-card">{group.days.map(day => <div className={`routine-day${expanded.has(day.date) ? ' is-expanded' : ''}`} key={day.date}>
+                  <button type="button" className="routine-row" aria-label={`${shortDate(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}, ${day.types.join(' and ')}, ${day.records.length} records`} aria-expanded={expanded.has(day.date)} aria-controls={`records-${day.date}`} onClick={() => toggle(day.date)}>
+                    <span className="routine-date">{shortDate(day.date, { weekday: 'short' })} {shortDate(day.date, { day: 'numeric' })}</span><span className="routine-types"><TypeWords types={day.types} /></span><span className="routine-sleep">{day.metrics.sleep !== undefined ? duration(day.metrics.sleep, true) : '—'}</span><span className="routine-weight">{day.metrics.weight !== undefined ? `${day.metrics.weight.toFixed(1)} kg` : '—'}</span>
+                  </button>
+                  <HabitRows data={data} date={day.date} recentSkips={recentSkips} onOpen={openRoutine} onChange={update} />
+                  {expanded.has(day.date) && <div id={`records-${day.date}`}>
+                    <DayRecords records={day.records} onOpen={setDetail} compact id={`day-records-${day.date}`} />
+                    <a className="write-entry-action text-action" href={`#/journal/${day.date}`}>Write journal entry</a>
+                  </div>}
+                </div>)}</div>
+              </section>;
+            }
+            const { day } = group;
+            const summaryItems = daySummary(day, data);
+            const records = entryRecords(day, resources);
+            return <article className="written-entry" key={day.date}>
+              <div className="entry-date"><span>{day.date === localDate() ? <><strong>Today</strong> · </> : day.date === addDays(localDate(), -1) ? <>Yesterday · </> : ''}{shortDate(day.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
+              {summaryItems.length > 0 && <div className="entry-summary" aria-label="Day summary">
+                {summaryItems.map(item => {
+                  const href = summaryRoutes[item.category];
+                  const routine = item.category === 'habit' ? data.routines.find(routine => routine.id === item.id) : undefined;
+                  return href
+                    ? <a className="summary-item" data-category={item.category} key={item.id} href={href}>{item.label}</a>
+                    : routine
+                      ? <button type="button" className="summary-item" data-category={item.category} key={item.id} onClick={() => openRoutine(routine, day.date)}>{item.label}</button>
+                      : <span className="summary-item" data-category={item.category} key={item.id}>{item.label}</span>;
+                })}
+              </div>}
+              {entryDate || day.date === today ? <input className="entry-title-input" aria-label="Journal title" placeholder="Journal title" value={day.entry!.title} onChange={event => updateEntry(day, { ...day.entry!, title: event.target.value })} /> : <h1><a href={`#/journal/${day.date}`}>{day.entry!.title || 'Untitled entry'}</a></h1>}
+              <JournalBody body={day.entry!.body} resources={resources} placeholder={day.date === today || entryDate ? 'Write about your day…' : undefined} onChange={body => updateEntry(day, { ...day.entry!, body })} onOpen={setDetail} />
+              <HabitRows data={data} date={day.date} recentSkips={recentSkips} onOpen={openRoutine} onChange={update} />
+              {entryDate ? <DayRecords records={records} onOpen={setDetail} id={`records-${day.date}`} /> : <>
+                <button type="button" className="records-toggle" aria-expanded={expanded.has(day.date)} aria-controls={`records-${day.date}`} onClick={() => toggle(day.date)}><span className="records-toggle-inner"><span>{records.length} records</span><Icon name="chevron" size={16} /></span></button>
+                {expanded.has(day.date) && <DayRecords records={records} onOpen={setDetail} id={`records-${day.date}`} />}
+              </>}
+            </article>;
+          })}
+          {!groups.length && <p className="empty-timeline" role="status">{entryDate ? 'There is no written entry for this day.' : 'Your journal is empty.'}</p>}
+        </div>
+      </main>
+      {!entryDate && <PrimaryNav active="today" />}
+    </>}
     {filterOpen && <HomeFilters filter={filter} onChange={setFilter} onClose={() => setFilterOpen(false)} />}
-    {summaryDay && <SummaryEditor day={summaryDay} onChange={updateDay} onClose={() => setSummaryDate(null)} />}
-    {newOpen && <NewEntry days={days} resources={resources} onOpen={setDetail} onClose={() => setNewOpen(false)} onSave={(date, entry) => {
-      setDays(current => current.some(day => day.date === date) ? current.map(day => day.date === date ? { ...day, entry } : day) : [...current, { date, types: [], metrics: {}, visibleMetrics: ['sleep', 'weight'], entry, records: [] }]);
-      setNewOpen(false); setQuery(''); setFilter(emptyFilter); window.scrollTo({ top: 0 });
-    }} />}
-    {detail && <Sheet title={detail.title} onClose={() => setDetail(null)}>
-      {/* TODO: Replace this preview with the designed record detail sheet. */}
-      <p className="detail-preview-label">Record preview</p>
-      {detail.kind === 'chart' ? detail.id === 'chart-rehab' ? <RehabChart /> : <SleepChart nights={getNights(days)} /> : <RecordItem record={detail} onOpen={() => {}} />}
-    </Sheet>}
+    {settingsOpen && <RoutinesSheet data={data} onChange={update} onClose={() => setSettingsOpen(false)} />}
+    {widgetsOpen && <Sheet title="Today widgets" development onClose={() => setWidgetsOpen(false)}>{(['rehab', 'sleep'] as const).map(widget => <label className="metric-choice" key={widget}><span>{widget === 'rehab' ? 'Finger rehab · 20 mm drag' : 'Sleep'}</span><input type="checkbox" checked={data.widgets[widget]} onChange={e => update({ ...data, widgets: { ...data.widgets, [widget]: e.target.checked } })} /></label>)}<p className="sheet-hint">Rehab combines the sample drag measurements with your saved 20 mm drag holds. Simulator results are excluded.</p><button className="primary-button full-width" onClick={() => setWidgetsOpen(false)}>Done</button></Sheet>}
+    {routineDetail && (routineDetail.routine.kind === 'reading' ? <ReadingSheet key={`${routineDetail.routine.id}-${routineDetail.date}`} data={data} routine={routineDetail.routine} date={routineDetail.date} onChange={update} onClose={() => setRoutineDetail(null)} /> : <AlcoholSheet key={`${routineDetail.routine.id}-${routineDetail.date}`} data={data} routine={routineDetail.routine} date={routineDetail.date} onChange={update} onClose={() => setRoutineDetail(null)} />)}
+    {!entryDate && routines.welcome && !routineDetail && <WelcomeSheet data={data} away={routines.away} onChange={update} onReview={openRoutine} onClose={routines.closeWelcome} />}
+    {detail && <Sheet title={detail.title} development onClose={() => setDetail(null)}>{detail.kind === 'chart' ? detail.id === 'chart-rehab' ? <RehabChart loads={loads} /> : <SleepChart nights={getNights(days)} /> : <RecordItem record={detail} onOpen={() => {}} />}</Sheet>}
   </>;
 }
