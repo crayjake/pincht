@@ -55,11 +55,13 @@ describe('workout screens', () => {
     await advance(90_000); await click('Complete set 2'); await click('Skip rest'); await click('Complete set 3');
     expect(screen.getByText('Pull-ups · 1 of 1 exercises')).toBeTruthy();
     fireEvent.change(screen.getByLabelText(/Symptom note/), { target: { value: 'Felt good' } });
+    fireEvent.change(screen.getByLabelText('Effort · RPE 1–10 · optional'), { target: { value: '7' } });
     await click('Save workout');
     expect(screen.getByRole('status').textContent).toContain('added to your journal');
     const saved = JSON.parse(localStorage.getItem(SESSION_KEY)!)[0];
     expect(saved.sets[0]).toMatchObject({ reps: 4, addedLoadKg: 2.5, source: 'manual' });
     expect(saved.symptomNote).toBe('Felt good');
+    expect(saved.rpe).toBe(7);
   });
 
   it('simulator shows live samples; retry repeats the set; keep starts rest; save stays isolated', async () => {

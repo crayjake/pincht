@@ -64,6 +64,7 @@ function SetSummary({ result }: { result: SetResult }) {
 }
 function Review({ session, onDone, saved = false }: { session: Session; onDone: () => void; saved?: boolean }) {
   const [note, setNote] = useState(session.symptomNote ?? '');
+  const [rpe, setRpe] = useState(session.rpe === undefined ? '' : String(session.rpe));
   const [error, setError] = useState('');
   const [didSave, setDidSave] = useState(saved);
   const [feeling, setFeeling] = useState(session.symptomFeeling);
@@ -85,11 +86,12 @@ function Review({ session, onDone, saved = false }: { session: Session; onDone: 
     <label className="train-field symptom-field">Symptom note <span className="train-muted">· optional</span>
       <textarea value={note} readOnly={didSave} placeholder={session.exercise.category === 'rehab' ? 'Pain (0–10), swelling, and any changes?' : 'How did the workout feel?'} maxLength={2000} onChange={event => setNote(event.target.value)} />
     </label>
+    <label className="train-field">Effort · RPE 1–10 · optional<input type="number" min="1" max="10" step="1" value={rpe} disabled={didSave} onChange={event => setRpe(event.target.value)} /></label>
     {simulated && <p className="train-muted">Test results stay separate from workout history and the journal.</p>}
     {error && <p role="alert" className="train-notice">{error}</p>}
     <div className="train-action-bar"><button className="train-primary" disabled={!session.sets.length && !didSave} onClick={() => {
       if (didSave) { onDone(); return; }
-      try { saveSession({ ...session, symptomFeeling: feeling }, note, Date.now()); const draft = loadWorkoutDraft(); if (draft?.session?.id === session.id || draft?.flow?.workoutId === session.id) clearWorkoutDraft(); setDidSave(true); setError(''); } catch (error) { setError(error instanceof Error ? error.message : 'Could not save. Your session is still here; try again.'); }
+      try { if (rpe && (!Number.isInteger(Number(rpe)) || Number(rpe) < 1 || Number(rpe) > 10)) throw new Error('Enter an effort between 1 and 10.'); saveSession({ ...session, symptomFeeling: feeling, rpe: rpe ? Number(rpe) : undefined }, note, Date.now()); const draft = loadWorkoutDraft(); if (draft?.session?.id === session.id || draft?.flow?.workoutId === session.id) clearWorkoutDraft(); setDidSave(true); setError(''); } catch (error) { setError(error instanceof Error ? error.message : 'Could not save. Your session is still here; try again.'); }
     }}>{didSave ? 'Done' : simulated ? 'Save simulator test' : 'Save workout'}</button>{didSave && <p role="status">{simulated ? 'Saved to simulator tests.' : 'Saved on this device and added to your journal.'}</p>}</div>
   </main>;
 }

@@ -10,6 +10,7 @@ export function RecordPill({ record, onOpen }: { record: PillResource; onOpen: (
 }
 export function Hypnogram({ night, compact = false }: { night: SleepNight; compact?: boolean }) {
   const totals = stageTotals(night);
+  if (!night.start || !night.end) return <div className="sleep-legend">{(['deep','rem','light'] as const).map(stage => <span key={stage}><i data-stage={stage} />{stage === 'rem' ? 'REM' : stage === 'deep' ? 'Deep' : 'Light'} <strong>{duration(totals[stage])}</strong></span>)}</div>;
   return <>
     <div className={`hypnogram${compact ? ' hypnogram-compact' : ''}`} role="img" aria-label={`Sleep stages from ${night.start} to ${night.end}. ${(['deep', 'rem', 'light', 'awake'] as const).map(stage => `${stage}: ${duration(totals[stage])}`).join(', ')}`}>
       {night.segments.map((segment, i) => <span key={i} data-stage={segment.stage} style={{ flexGrow: segment.minutes } as CSSProperties} />)}

@@ -19,6 +19,13 @@ export function createDemoData(today = localDate()): { days: Day[]; routines: Ro
     const shifted: Day = JSON.parse(JSON.stringify(day, (_key, value) => typeof value === 'string'
       ? /^\d{4}-\d{2}-\d{2}$/.test(value) ? shift(value, block) : ids.get(value) ?? value
       : value));
+    // These are explicit demo logs, so widgets can exercise the same structured fields as real logs.
+    for (const record of shifted.records.filter(record => record.kind === 'climb')) {
+      const sidepull = record.id.startsWith('sidepull');
+      record.metric = sidepull ? '7A' : '6C+';
+      record.climb = { goes: sidepull ? 6 : 4, ...(sidepull || !record.id.startsWith('climb-7-') ? { sendGo: sidepull ? 6 : 3 } : {}) };
+      shifted.measurements = { climbingMinutes: sidepull ? 100 : 80 };
+    }
     if (block && shifted.entry) shifted.entry.title = olderTitles[(block - 1) * 5 + seedDays.filter(d => d.entry).findIndex(d => d.date === day.date)];
     return shifted;
   })).flat();
@@ -35,5 +42,12 @@ export function createDemoData(today = localDate()): { days: Day[]; routines: Ro
       symptomNote: 'Demo workout',
       sets: Array.from({ length: preset.prescription.sets }, (_, i) => ({ set: i + 1, source: 'manual', status: 'completed', durationSeconds: 15, meanKg: load.kg, trace: [] })) };
   });
+  const pullupPreset = workoutPresets.find(preset => preset.id === 'pull-ups-3x5')!;
+  for (const [index, daysAgo] of [1, 3, 6, 9, 13, 17, 21, 25, 30, 34].entries()) {
+    const now = Date.parse(`${addDays(today, -daysAgo)}T19:00:00`);
+    const session = createSession(pullupPreset, exercises.find(exercise => exercise.id === pullupPreset.exerciseId)!, 'manual', now);
+    sessions.push({ ...session, id: `demo-pullups-${index}`, phase: 'review', finishedAt: new Date(now + 900_000).toISOString(), rpe: 7,
+      sets: Array.from({ length: 3 }, (_, set) => ({ set: set + 1, source: 'manual', status: 'completed', reps: 5, trace: [] })) });
+  }
   return { days, routines, sessions };
 }

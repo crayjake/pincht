@@ -18,11 +18,16 @@ import { loadViews } from './journal-views';
 import { getDataMode, type DataMode } from '../../data/mode';
 import { Icon } from './journal-icons';
 import { allRoutines } from '../../routines/tasks';
+import { QuickLog } from './quick-log';
+import { strengthMeasurements } from './widget-data';
+import { ViewWidgets } from './view-widgets';
 import { WorkoutProgress } from './workout-progress';
 import './home.scss';
 
 export default function LibraryPage({ category, id, onDataMode }: { category?: string; id?: string; onDataMode: (mode: DataMode) => void }) {
   const routines = useRoutines(false);
+  const [measurement, setMeasurement] = useState(false);
+  const [, refreshMeasurements] = useState(0);
   const [query, setQuery] = useState('');
   const [createPicker, setCreatePicker] = useState(false);
   const [creating, setCreating] = useState(id === 'new');
@@ -41,6 +46,9 @@ export default function LibraryPage({ category, id, onDataMode }: { category?: s
   const isDetail = !!id && id !== 'new';
   useEffect(() => { document.title = `${isDetail ? record?.title ?? routine?.name ?? view?.name ?? title : title} · pincht`; }, [isDetail, record?.title, routine?.name, view?.name, title]);
   const history = record ? recordHistory(record, days, resources) : [];
+  if (record?.goal?.metric === 'finger-strength') for (const value of strengthMeasurements(days, dragLoads(loadSessions())).filter(value => value.date <= localDate())) {
+    history.push({ date: value.date, record: { id: `measurement-finger-${value.date}`, kind: 'rehab', title: '20 mm drag', metric: `${value.kg} kg`, meta: 'Finger strength' }, logged: true });
+  }
   if (book) for (const value of data.checkIns.filter(value => value.bookId === book.id && value.status === 'done')) {
     if (!history.some(item => item.date === value.date)) history.push({ date: value.date, record: { id: `book-${book.id}`, kind: 'habit', title: book.title, metric: `${value.minutes ?? 0} min`, meta: value.page !== undefined ? `Page ${value.page}` : '' }, logged: true });
   }
@@ -78,6 +86,7 @@ export default function LibraryPage({ category, id, onDataMode }: { category?: s
         {routine && <><a className="text-action" href={`#/routines/${routine.id}`}>Edit routine</a><p className="muted">{routine.active ? 'Active' : 'Paused'} · from {routine.start}</p><div className="settings-list">{data.checkIns.filter(value => value.routineId === routine.id && value.status === 'done').sort((a,b) => b.date.localeCompare(a.date)).map(value => <a className="settings-row" key={value.date} href={`#/journal/${value.date}`}><strong>{value.date}</strong><small>{value.minutes !== undefined ? `${value.minutes} min` : value.drinks !== undefined ? `${value.drinks} drinks` : 'Completed'}</small></a>)}</div></>}
         {view && <div className="settings-list"><a className="settings-row" href={`#/view/${view.id}`}>Open view</a><a className="settings-row" href={`#/views/edit/${view.id}`}>Edit view</a></div>}
         {climbLogs.length > 0 && <p className="mono">{climbLogs.reduce((sum,item) => sum + (item.record.kind !== 'chart' ? item.record.climb?.goes ?? 0 : 0),0)} goes · {climbLogs.filter(item => item.record.kind !== 'chart' && item.record.climb?.sendGo).length} sends</p>}
+        {record?.goal && <><ViewWidgets widgets={['strength']} days={days} data={data} loads={dragLoads(loadSessions())} goalId={record.id} /><button className="primary-button" onClick={() => setMeasurement(true)}>Log measurement</button></>}
         {record?.progress && <p>{record.progress.completed} / {record.progress.total}</p>}
         {record && <section className="settings-section"><h2>History</h2>{historyRows.length ? historyRows.map(item => <section key={`${item.date}-${item.record.id}`} className="library-history"><a className="eyebrow text-action" href={`#/journal/${item.date}`}>{shortDate(item.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · {item.logged ? 'logged' : 'referenced'}</a><RecordItem record={item.record} onOpen={record => { location.hash = recordHref(record); }} /></section>) : <p className="muted">No logs or references yet.</p>}</section>}
       </> : <p className="muted">This item could not be found.</p>}
@@ -91,6 +100,7 @@ export default function LibraryPage({ category, id, onDataMode }: { category?: s
     {!category && <section className="settings-section data-mode-switch"><label className="form-label">Stored data<select aria-label="Stored data mode" value={getDataMode()} onChange={event => onDataMode(event.target.value as DataMode)}><option value="real">My real setup</option><option value="demo">Testing / dummy data</option></select></label><p className="settings-caption">Each mode keeps its own saved data.</p></section>}
     {routines.error && <p role="alert">{routines.error}</p>}
   </main><PrimaryNav active="library" />
+  {measurement && <QuickLog kind="finger" onClose={() => setMeasurement(false)} onSaved={() => refreshMeasurements(value => value + 1)} />}
   {createPicker && <Sheet title="Create new" onClose={() => setCreatePicker(false)}><div className="settings-list">{libraryCategories.map(kind => <button className="settings-row" key={kind} onClick={() => { setCreatePicker(false); newItem(kind); }}>+ New {categoryName(kind).toLowerCase()}</button>)}</div></Sheet>}
   {creating && category === 'books' && <BookSelector data={data} onChange={routines.update} onClose={endCreation} onSelect={endCreation} />}
   {creating && ['climbs','goals','workouts'].includes(category ?? '') && <CreateThing category={category as LibraryCategory} onClose={endCreation} />}
@@ -98,21 +108,23 @@ export default function LibraryPage({ category, id, onDataMode }: { category?: s
 }
 function CreateThing({ category, onClose }: { category: LibraryCategory; onClose: () => void }) {
   const [title, setTitle] = useState(''), [description, setDescription] = useState(''), [grade, setGrade] = useState('');
+  const [goalMetric, setGoalMetric] = useState('count');
   const [total, setTotal] = useState(1), [presets, setPresets] = useState<string[]>([]), [error, setError] = useState('');
   return <Sheet title={`New ${category === 'climbs' ? 'climb' : category === 'goals' ? 'goal' : 'workout'}`} onClose={onClose}><form className="entry-form" onSubmit={event => { event.preventDefault(); try {
     if (!title.trim()) throw new Error('Enter a name.');
+    if (category === 'goals' && (!Number.isFinite(total) || total <= 0 || (goalMetric === 'count' && !Number.isInteger(total)))) throw new Error('Enter a positive target.');
     const id = crypto.randomUUID();
     if (category === 'workouts') saveWorkoutPlan({ id, name: title, description, presetIds: presets });
-    else saveResources([...loadResources(), { id, kind: category === 'climbs' ? 'climb' : 'goal', title: title.trim(), metric: grade, meta: description, ...(category === 'goals' ? { progress: { completed: 0, total } } : {}) }]);
+    else saveResources([...loadResources(), { id, kind: category === 'climbs' ? 'climb' : 'goal', title: title.trim(), metric: grade, meta: description, ...(category === 'goals' ? goalMetric === 'finger-strength' ? { goal: { metric: 'finger-strength' as const, targetKg: total } } : { progress: { completed: 0, total } } : {}) }]);
     onClose();
   } catch(error) { setError((error as Error).message); } }}><label>Name<input autoFocus required value={title} onChange={event => setTitle(event.target.value)} /></label><label>{category === 'climbs' ? 'Location / details' : 'Description'}<textarea value={description} onChange={event => setDescription(event.target.value)} /></label>
     {category === 'climbs' && <label>Grade<input value={grade} onChange={event => setGrade(event.target.value)} /></label>}
-    {category === 'goals' && <label>Target count<input required type="number" min="1" step="1" value={total} onChange={event => setTotal(Number(event.target.value))} /></label>}
+    {category === 'goals' && <><label>Measure<select value={goalMetric} onChange={event => {setGoalMetric(event.target.value);setTotal(event.target.value === 'finger-strength' ? 25 : 1)}}><option value="count">Count</option><option value="finger-strength">Finger strength · 20 mm drag</option></select></label><label>{goalMetric === 'count' ? 'Target count' : 'Target load · kg'}<input required type="number" min={goalMetric === 'count' ? '1' : '0.1'} step={goalMetric === 'count' ? '1' : '0.1'} value={total} onChange={event => setTotal(Number(event.target.value))} /></label></>}
     {category === 'workouts' && <fieldset><legend>Exercises</legend>{workoutPresets.filter(preset => preset.id !== 'finger-rehab').map(preset => resolvePreset(preset)).map(preset => <label className="metric-choice" key={preset.id}><span>{preset.name}<small className="muted"> · {prescriptionLabel(preset.prescription)}</small></span><input type="checkbox" checked={presets.includes(preset.id)} onChange={event => setPresets(current => event.target.checked ? [...current,preset.id] : current.filter(id => id !== preset.id))} /></label>)}</fieldset>}
     {error && <p role="alert">{error}</p>}<button type="submit" className="primary-button">Create {category === 'climbs' ? 'climb' : category === 'goals' ? 'goal' : 'workout'}</button></form></Sheet>;
 }
 function MetricDetail({ id, days }: { id: string; days: ReturnType<typeof loadDays> }) {
-  const loads = dragLoads(loadSessions());
+  const loads = strengthMeasurements(days, dragLoads(loadSessions()));
   const values = days.filter(day => id === 'weight' ? day.metrics.weight !== undefined : day.metrics.sleep !== undefined);
   return <section className="settings-section">{id === 'rehab' ? <RehabChart loads={loads} /> : id === 'sleep' ? <SleepChart nights={getNights(days)} /> : null}
     {id === 'weight' && values.length > 1 && <svg className="metric-chart" viewBox="0 0 320 100" role="img" aria-label="Weight history"><polyline fill="none" stroke="currentColor" strokeWidth="2" points={[...values].reverse().map((day,i) => `${10+i/(values.length-1)*300},${90-(day.metrics.weight!-Math.min(...values.map(day=>day.metrics.weight!)))/Math.max(1,Math.max(...values.map(day=>day.metrics.weight!))-Math.min(...values.map(day=>day.metrics.weight!)))*80}`).join(' ')} /></svg>}

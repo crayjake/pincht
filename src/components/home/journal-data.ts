@@ -3,8 +3,8 @@ export type DayType = Category | 'rest';
 export type SleepStage = 'deep' | 'rem' | 'light' | 'awake';
 export interface SleepNight {
   date: string;
-  start: string;
-  end: string;
+  start?: string;
+  end?: string;
   segments: { stage: SleepStage; minutes: number }[];
 }
 export interface RehabLoad { date: string; kg: number; edgeMm: number }
@@ -18,6 +18,7 @@ export interface JournalRecord {
   climb?: { goes: number; sendGo?: number };
   sleep?: SleepNight;
   progress?: { completed: number; total: number };
+  goal?: { metric: 'finger-strength'; targetKg: number };
 }
 export type RichNode = { type: 'text'; text: string; marks?: { type: string; attrs?: Record<string, unknown> }[] } | {
   type: 'recordPill'; attrs: { id: string; label: string; category: Category };
@@ -33,6 +34,7 @@ export interface Day {
   types: DayType[];
   metrics: { sleep?: number; weight?: number };
   visibleMetrics: ('sleep' | 'weight')[];
+  measurements?: { fingerStrengthKg?: number; climbingMinutes?: number };
   entry?: Entry;
   records: JournalRecord[];
 }

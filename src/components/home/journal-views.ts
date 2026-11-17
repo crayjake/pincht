@@ -3,8 +3,10 @@ import { routineTags, type ViewTag } from '../../routines/tasks';
 import type { Routine } from '../../routines/data';
 import type { Day } from './journal-data';
 
-export type WidgetId = 'rehab' | 'climbing' | 'sleep' | 'activity';
-export interface ViewBlock { id: string; type: 'widgets' | 'todo' | 'journal' | 'chart'; enabled: boolean; widgets?: WidgetId[]; chart?: 'rehab' | 'sleep' }
+export const widgetNames = { rehab: 'Finger rehab', sleep: 'Sleep', climbing: 'Climbing days', weight: 'Weight', alcohol: 'Alcohol-free', reading: 'Reading', train: 'Train', drinks: 'Drinks', hardest: 'Hardest send', pullups: 'Pull-ups', projects: 'Projects', wall: 'Time on wall', sends: 'Sends by grade', sessions: 'Sessions per week', strength: 'Finger strength', stages: 'Sleep stages', calendar: 'Training calendar', habits: 'Habits', book: 'Reading · full width', next: 'Next up', activity: 'Last seven days' } as const;
+export type WidgetId = keyof typeof widgetNames;
+export const fullWidgets: WidgetId[] = ['sends', 'sessions', 'strength', 'stages', 'calendar', 'habits', 'book', 'next', 'activity'];
+export interface ViewBlock { id: string; type: 'widgets' | 'todo' | 'journal' | 'chart'; enabled: boolean; widgets?: WidgetId[]; chart?: WidgetId; goalId?: string }
 export interface JournalView { id: string; name: string; tags: ViewTag[]; blocks: ViewBlock[]; isDefault?: boolean }
 export const VIEWS_KEY = 'pincht.views';
 export const allView: JournalView = { id: 'all', name: 'All', tags: [], isDefault: true,

@@ -7,7 +7,8 @@ import { chartResources, duration, emptyFilter, entryRecords, groupDays, getNigh
 import { Icon } from './journal-icons';
 import { DayRecords, RecordItem } from './journal-records';
 import { Sheet } from './journal-sheet';
-import { ViewWidgets, RehabChart, SleepChart } from './journal-widgets';
+import { RehabChart, SleepChart } from './journal-widgets';
+import { ViewWidgets } from './view-widgets';
 import { PrimaryNav } from '../app-navigation';
 import { DueToday, HabitRows } from '../../routines/due-today';
 import { addDays, adherence, withRoutineDays, type Routine } from '../../routines/data';
@@ -192,7 +193,7 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
         {!entryDate && view && <header ref={journalHeading} className={`journal-heading view-heading${scrolled ? ' is-pinned' : ''}`}><ViewPills views={views} selected={view.id} onSearch={() => { setSearchOpen(true); window.scrollTo(0, 0); }} /></header>}
         {(storageError || routines.error) && <p role="status" className="storage-notice">{routines.error || storageError}</p>}
         {entryDate && timeline}
-        {!entryDate && view && view.blocks.filter(block => block.enabled).map(block => <div className={`custom-view-block block-${block.type}`} key={block.id}>{block.type === 'widgets' ? <ViewWidgets widgets={block.widgets ?? []} days={days} data={data} loads={loads} /> : block.type === 'todo' ? tasks('compact') : block.type === 'chart' ? <section className="view-chart"><h2>{block.chart === 'sleep' ? 'Sleep' : 'Finger rehab'}</h2>{block.chart === 'sleep' ? <SleepChart nights={getNights(viewDays)} /> : <RehabChart loads={loads} />}</section> : timeline}</div>)}
+        {!entryDate && view && view.blocks.filter(block => block.enabled).map(block => <div className={`custom-view-block block-${block.type}`} key={block.id}>{block.type === 'widgets' ? <ViewWidgets widgets={block.widgets ?? []} days={days} data={data} loads={loads} goalId={block.goalId} /> : block.type === 'todo' ? tasks('compact') : block.type === 'chart' ? <ViewWidgets widgets={[block.chart === 'rehab' ? 'strength' : block.chart === 'sleep' ? 'stages' : block.chart ?? 'strength']} days={days} data={data} loads={loads} goalId={block.goalId} /> : timeline}</div>)}
       </main>
       {!entryDate && <PrimaryNav active="journal" />}
     </>}

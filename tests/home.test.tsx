@@ -105,7 +105,7 @@ describe('Today and journal flows', () => {
     expect(due.queryByText(/Read|Alcohol/)).toBeNull();
     expect(due.queryByText(/unlogged/)).toBeNull();
     expect(screen.getByRole('region', { name: 'Finger rehab' })).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Climbing' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Climbing days' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Sleep' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Climbing notes' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Rest notes' })).toBeNull();

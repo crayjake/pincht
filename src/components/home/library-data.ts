@@ -9,6 +9,7 @@ export const libraryCategories: LibraryCategory[] = ['climbs', 'workouts', 'book
 export const categoryName = (category: string) => category[0].toUpperCase() + category.slice(1);
 export function recordHref(record: PillResource): string {
   const id = encodeURIComponent(record.id);
+  if (record.id.startsWith('measurement-finger-')) return '#/library/metrics/rehab';
   if (record.kind === 'sleep') return '#/library/metrics/sleep';
   if (record.kind === 'chart') return `#/library/metrics/${record.category}`;
   if (record.id.startsWith('plan-')) return `#/library/workouts/${id}`;

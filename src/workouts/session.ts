@@ -14,7 +14,7 @@ export interface Session {
   phase: 'ready' | 'preparing' | 'holding' | 'result' | 'rest' | 'review';
   currentSet: number; readyUntil?: number; restUntil?: number; holdStartedAt?: number; requestedAt?: number;
   lastSampleAt?: number; firstDeviceUs?: number; lastDeviceUs?: number; trace: TracePoint[];
-  candidate?: SetResult; symptomNote?: string;
+  candidate?: SetResult; symptomNote?: string; rpe?: number;
   completedCycles?: number; pausedAt?: number; awaitingReset?: boolean; symptomFeeling?: 'No pain' | 'Familiar, settled' | 'Worse';
   workout?: { plan: WorkoutPlan; prescriptions: WorkoutPreset[]; sessions: Session[] };
 }
