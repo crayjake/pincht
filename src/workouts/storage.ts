@@ -1,6 +1,7 @@
 import type { Day, JournalRecord } from '../components/home/journal-data.ts';
 import type { Session } from './session.ts';
 import { exerciseSummary, prescribedSets, sessionName } from './workout.ts';
+import { dataKey } from '../data/mode.ts';
 
 export const SESSION_KEY = 'pincht.workouts.v1';
 export const SIMULATOR_KEY = 'pincht.workout-simulations.v1';
@@ -11,12 +12,12 @@ function read(store: Store, key: string): Session[] {
   return raw;
 }
 export function loadSessions(store: Store = localStorage, simulated = false): Session[] {
-  try { return read(store, simulated ? SIMULATOR_KEY : SESSION_KEY); } catch { return []; }
+  try { return read(store, dataKey(simulated ? SIMULATOR_KEY : SESSION_KEY, store)); } catch { return []; }
 }
 export function saveSession(session: Session, note: string, now: number, store: Store = localStorage): Session {
   if (!session.sets.length || session.phase !== 'review') throw new Error('Complete and keep at least one set before saving.');
   const simulated = session.source === 'simulator' || session.sets.some(s => s.source === 'simulator');
-  const key = simulated ? SIMULATOR_KEY : SESSION_KEY;
+  const key = dataKey(simulated ? SIMULATOR_KEY : SESSION_KEY, store);
   const saved: Session = { ...session, symptomNote: note.trim() || undefined, finishedAt: new Date(now).toISOString() };
   const sessions = read(store, key);
   store.setItem(key, JSON.stringify([saved, ...sessions.filter(s => s.id !== session.id)]));

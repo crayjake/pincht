@@ -15,7 +15,7 @@ export interface Session {
   currentSet: number; readyUntil?: number; restUntil?: number; holdStartedAt?: number; requestedAt?: number;
   lastSampleAt?: number; firstDeviceUs?: number; lastDeviceUs?: number; trace: TracePoint[];
   candidate?: SetResult; symptomNote?: string;
-  pausedAt?: number; symptomFeeling?: 'No pain' | 'Familiar, settled' | 'Worse';
+  completedCycles?: number; pausedAt?: number; awaitingReset?: boolean; symptomFeeling?: 'No pain' | 'Familiar, settled' | 'Worse';
   workout?: { plan: WorkoutPlan; prescriptions: WorkoutPreset[]; sessions: Session[] };
 }
 export type SessionEvent =
@@ -45,7 +45,7 @@ function endHold(state: Session, now: number, status: SetResult['status'], reaso
   const candidate: SetResult = {
     set: state.currentSet, source: state.source, status, reason, trace: state.trace,
     durationSeconds: Math.min(durationSeconds, workSeconds(state.preset.prescription)),
-    ...(state.preset.prescription.kind === 'paced' ? { reps: Math.min(state.preset.prescription.reps, Math.floor(durationSeconds / (workSeconds(state.preset.prescription) / state.preset.prescription.reps))) } : {}),
+    ...(state.preset.prescription.kind === 'paced' ? { addedLoadKg: state.preset.prescription.addedLoadKg, reps: Math.min(state.preset.prescription.reps, Math.floor(durationSeconds / (workSeconds(state.preset.prescription) / state.preset.prescription.reps))) } : {}),
     meanKg: state.trace.length ? state.trace.reduce((sum, point) => sum + point.kg, 0) / state.trace.length : undefined,
   };
   return { ...state, phase: 'result', candidate, attempts: [...state.attempts, candidate] };
@@ -59,7 +59,7 @@ export function sessionReducer(state: Session, event: SessionEvent): Session {
   switch (event.type) {
     case 'prepare': return state.phase === 'ready' && (p.kind === 'paced' || p.kind === 'timed') ? { ...state, phase: 'preparing', readyUntil: event.now + 5000 } : state;
     case 'start':
-      return (state.phase === 'ready' || state.phase === 'preparing') && p.kind !== 'reps' ? { ...state, phase: 'holding', pausedAt: undefined, trace: [], candidate: undefined, requestedAt: event.now, holdStartedAt: state.source === 'manual' ? event.now : undefined, lastSampleAt: undefined, firstDeviceUs: undefined, lastDeviceUs: undefined } : state;
+      return (state.phase === 'ready' || state.phase === 'preparing') && p.kind !== 'reps' ? { ...state, phase: 'holding', completedCycles: 0, pausedAt: undefined, awaitingReset: false, trace: [], candidate: undefined, requestedAt: event.now, holdStartedAt: state.source === 'manual' ? event.now : undefined, lastSampleAt: undefined, firstDeviceUs: undefined, lastDeviceUs: undefined } : state;
     case 'sample': {
       if (state.phase !== 'holding' || state.source === 'manual' || !Number.isFinite(event.sample.kg)) return state;
       if (event.now - (state.lastSampleAt ?? state.requestedAt!) >= STALE_MS) return endHold(state, event.now, 'interrupted', 'Force samples stopped. Reconnect or tare, then retry.');
@@ -76,12 +76,18 @@ export function sessionReducer(state: Session, event: SessionEvent): Session {
     }
     case 'tick':
       if (state.phase === 'preparing' && event.now >= state.readyUntil!) return sessionReducer(state, { type: 'start', now: event.now });
-      if (state.phase === 'rest' && event.now >= state.restUntil!) {
+      if (state.phase === 'rest' && !(p.kind === 'timed' && p.selfPacedRest) && event.now >= state.restUntil!) {
         const ready = sessionReducer(state, { type: 'skip-rest' });
         return p.kind === 'timed' || p.kind === 'paced' ? sessionReducer(ready, { type: 'prepare', now: event.now }) : ready;
       }
       if (state.phase !== 'holding' || state.pausedAt !== undefined) return state;
       if (state.source !== 'manual' && event.now - (state.lastSampleAt ?? state.requestedAt!) >= STALE_MS) return endHold(state, event.now, 'interrupted', 'Force samples stopped. Reconnect or tare, then retry.');
+      if (state.source === 'manual' && p.kind === 'paced' && p.manualReset) {
+        const cycleMs = workSeconds(p) / p.reps * 1000;
+        const completed = state.completedCycles ?? 0;
+        const boundary = state.holdStartedAt! + (completed + 1) * cycleMs;
+        if (completed < p.reps - 1 && event.now >= boundary) return { ...state, completedCycles: completed + 1, pausedAt: boundary, awaitingReset: true };
+      }
       if (state.source === 'manual' && remainingSeconds(state, event.now) === 0) {
         const ended = endHold(state, event.now, 'completed');
         return p.kind === 'timed' || p.kind === 'paced' ? accept(ended, ended.candidate!, event.now) : ended;
@@ -98,7 +104,7 @@ export function sessionReducer(state: Session, event: SessionEvent): Session {
     }
     case 'retry': return state.phase === 'result' ? { ...state, phase: 'ready', candidate: undefined, trace: [] } : state;
     case 'pause': return state.phase === 'holding' && state.source === 'manual' && state.pausedAt === undefined ? { ...state, pausedAt: event.now } : state;
-    case 'resume': return state.pausedAt !== undefined && state.phase === 'holding' ? { ...state, holdStartedAt: state.holdStartedAt! + event.now - state.pausedAt, pausedAt: undefined } : state;
+    case 'resume': return state.pausedAt !== undefined && state.phase === 'holding' ? { ...state, holdStartedAt: state.holdStartedAt! + event.now - state.pausedAt, pausedAt: undefined, awaitingReset: false } : state;
     case 'extend-rest': return state.phase === 'rest' && Number.isFinite(event.seconds) && event.seconds > 0 ? { ...state, restUntil: state.restUntil! + event.seconds * 1000 } : state;
     case 'skip-rest': return state.phase === 'rest' ? { ...state, phase: 'ready', currentSet: state.sets.length + 1, trace: [], restUntil: undefined } : state;
     case 'complete-reps':

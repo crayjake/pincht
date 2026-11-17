@@ -4,6 +4,9 @@ import '../@/styles/_variables.scss'
 import '../@/styles/_keyframe-animations.scss'
 import './index.css'
 import App from './App.tsx'
+import { initialiseDataMode } from './data/initialise'
+
+initialiseDataMode()
 
 // The UI kit uses a class for dark mode; keep portalled menus in the same theme.
 const colorScheme = window.matchMedia('(prefers-color-scheme: dark)')

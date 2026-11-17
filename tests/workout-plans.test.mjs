@@ -1,3 +1,4 @@
+import { emptyRehab } from '../src/rehab/data.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { exercises, workoutPlans, workoutPresets, planPresets, workoutMinutes } from '../src/workouts/fixtures.ts';
@@ -9,21 +10,27 @@ const make = id => {
   return createSession(preset, exercises.find(e => e.id === preset.exerciseId), 'manual', 0);
 };
 
-test('reference rehab fixture includes all exercises with only the half crimp locked', () => {
+test('dated rehab plan makes early exercises optional after two weeks', () => {
   const plan = workoutPlans.find(plan => plan.id === 'pulley-rehab');
-  const presets = planPresets(plan);
+  const config = { ...emptyRehab(), pulleyStart: '2026-11-01' };
+  const presets = planPresets(plan, config, '2026-11-15');
   assert.deepEqual(presets.map(p => p.id), ['tendon-glides', 'isometric-squeeze', 'three-finger-drag', 'half-crimp']);
   assert.equal(presets.filter(p => !p.locked).length, 3);
   assert.equal(presets[0].prescription.steps.length, 5);
   assert.equal(presets[0].prescription.reps, 6);
-  assert.deepEqual(presets[1].prescription, { kind: 'timed', sets: 6, holdSeconds: 10, restSeconds: 30 });
+  assert.deepEqual(presets[1].prescription, { kind: 'timed', sets: 6, holdSeconds: 10, restSeconds: 0, selfPacedRest: true });
   assert.equal(presets[2].prescription.targetKg, 10);
-  assert.equal(workoutMinutes(plan), 11);
+  assert.equal(workoutMinutes(plan, presets), 7);
+  assert.equal(presets[0].optional, true);
+  assert.equal(presets[1].optional, true);
   assert.deepEqual(planPresets(workoutPlans.find(p => p.id === 'mobility')).map(p => p.id), ['tendon-glides', 'isometric-squeeze']);
 });
 
 test('guided preparation, rest deadlines, pause, and completion preserve actual work time', () => {
-  let s = reduce(make('isometric-squeeze'), { type: 'prepare', now: 0 });
+  const base = make('isometric-squeeze');
+  base.preset.prescription.restSeconds = 30;
+  base.preset.prescription.selfPacedRest = false;
+  let s = reduce(base, { type: 'prepare', now: 0 });
   assert.equal(remainingSeconds(s, 4999), 1);
   s = reduce(s, { type: 'tick', now: 5000 });
   assert.equal(s.phase, 'holding');
@@ -64,7 +71,7 @@ test('aggregate sessions snapshot the complete plan and isolate simulated exerci
   drag.source = 'simulator'; drag.phase = 'review';
   drag.sets = [{ set: 1, source: 'simulator', status: 'completed', durationSeconds: 15, meanKg: 10, trace: [] }];
   const plan = structuredClone(workoutPlans.find(plan => plan.id === 'pulley-rehab'));
-  const prescriptions = structuredClone(planPresets(plan));
+  const prescriptions = structuredClone(planPresets(plan, { ...emptyRehab(), pulleyStart: '2026-11-01' }, '2026-11-15'));
   const workout = summariseWorkout(plan, prescriptions, [glides, drag], 'manual', 'whole-workout', new Date(0).toISOString());
   assert.equal(prescribedSets(workout), 13); assert.equal(workout.source, 'simulator');
   assert.equal(workout.sets[1].exerciseId, 'finger-drag');

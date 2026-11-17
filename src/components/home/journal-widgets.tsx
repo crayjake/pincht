@@ -1,5 +1,4 @@
 import { useId, type ReactNode } from 'react';
-import { sampleDragLoads } from '../../routines/rehab-loads';
 import { Icon } from './journal-icons';
 import { asleepMinutes, dateValue, duration, stageTotals, getNights, type Category, type Day, type RehabLoad, type SleepNight } from './journal-data';
 import type { SummaryCategory } from './journal-summary';
@@ -55,7 +54,7 @@ export function ClimbingWidgets({ days, data, loads }: { days: Day[]; data: Rout
     <Widget title="Climbing" category="climb" headline={<><span>{count}</span><small>{count === 1 ? 'day' : 'days'}</small></>} subline="last seven days"><ActivityStrip week={week} /></Widget>
   </div>;
 }
-export function RehabChart({ loads = sampleDragLoads }: { loads?: RehabLoad[] }) {
+export function RehabChart({ loads = [] }: { loads?: RehabLoad[] }) {
   if (!loads.length) return <p className="widget-subline">No drag measurements yet.</p>;
   const values = loads.map(load => load.kg);
   const min = Math.min(...values) - 1.4;
@@ -94,4 +93,12 @@ export function JournalWidgets({ days, loads, visible, onConfigure }: { days: Da
     {visible.rehab && <Widget title="Finger rehab" category="rehab" headline={<><span>{latest ? latest.kg.toFixed(1) : '—'}</span><small>kg</small></>} subline="20 mm drag · last hold" onConfigure={onConfigure}><RehabChart loads={loads} /></Widget>}
     {visible.sleep && <Widget title="Sleep" category="sleep" headline={<span>{nights.length ? duration(nights.reduce((sum, n) => sum + asleepMinutes(n), 0) / nights.length) : '—'}</span>} subline={`avg of ${nights.length} nights`} onConfigure={onConfigure}><SleepChart nights={nights} /></Widget>}
   </div>;
+}
+
+export function ViewWidgets({ widgets, days, data, loads }: { widgets: import('./journal-views').WidgetId[]; days: Day[]; data: RoutineData; loads: RehabLoad[] }) {
+  const latest = loads.at(-1);
+  const nights = getNights(days);
+  const week = activityWeek(days, data, true);
+  const count = week.filter(day => day.items.length).length;
+  return <div className="journal-widgets view-widgets">{widgets.map(id => id === 'activity' ? <WeeklyActivityWidget key={id} days={days} data={data} /> : id === 'rehab' ? <Widget key={id} title="Finger rehab" category="rehab" headline={<><span>{latest ? latest.kg.toFixed(1) : '—'}</span><small>kg</small></>} subline="20 mm drag · last hold"><RehabChart loads={loads} /></Widget> : id === 'sleep' ? <Widget key={id} title="Sleep" category="sleep" headline={<span>{nights.length ? duration(nights.reduce((sum, night) => sum + asleepMinutes(night), 0) / nights.length) : '—'}</span>} subline={`avg of ${nights.length} nights`}><SleepChart nights={nights} /></Widget> : <Widget key={id} title="Climbing" category="climb" headline={<><span>{count}</span><small>{count === 1 ? 'day' : 'days'}</small></>} subline="last seven days"><ActivityStrip week={week} /></Widget>)}</div>;
 }

@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import type { Editor } from '@tiptap/react';
 import { Button } from '@/components/tiptap-ui-primitive/button';
 import { Toolbar, ToolbarGroup, ToolbarSeparator } from '@/components/tiptap-ui-primitive/toolbar';
@@ -11,33 +10,21 @@ import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button';
 import { CheckIcon } from '@/components/tiptap-icons/check-icon';
 import './journal-toolbar.scss';
 
-export function JournalToolbar({ editor, active, onDone }: {
-  editor: Editor; active: boolean; onDone: () => void;
+export function JournalToolbar({ editor, active, linking, onLinkRecord, onDone }: {
+  editor: Editor; active: boolean; linking: boolean; onLinkRecord: () => void; onDone: () => void;
 }) {
-  const toolbar = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    const position = () => {
-      const keyboardHeight = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
-      toolbar.current?.style.setProperty('--keyboard-height', `${keyboardHeight}px`);
-    };
-    position();
-    viewport?.addEventListener('resize', position);
-    viewport?.addEventListener('scroll', position);
-    window.addEventListener('resize', position);
-    return () => {
-      viewport?.removeEventListener('resize', position);
-      viewport?.removeEventListener('scroll', position);
-      window.removeEventListener('resize', position);
-    };
-  }, []);
-
-  return <Toolbar ref={toolbar} variant="floating" className="journal-toolbar" aria-label="Journal formatting" tabIndex={0}
+  return <Toolbar variant="floating" className="journal-toolbar" aria-label="Journal formatting" tabIndex={0}
     data-visible={active} inert={!active}
     onPointerDown={event => {
       // Keep the text selection and mobile keyboard while tapping a format.
       if ((event.target as HTMLElement).closest('button')) event.preventDefault();
     }}>
+    <ToolbarGroup>
+      <Button type="button" variant="ghost" aria-label="Link a record" aria-expanded={linking} onClick={onLinkRecord}>
+        <span className="journal-link-icon" aria-hidden="true">@</span>
+      </Button>
+    </ToolbarGroup>
+    <ToolbarSeparator />
     <ToolbarGroup>
       <UndoRedoButton editor={editor} action="undo" showTooltip={false} />
       <UndoRedoButton editor={editor} action="redo" showTooltip={false} />

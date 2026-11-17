@@ -10,24 +10,24 @@ export function ReadingSheet({ data, routine, date: initialDate, onChange, onClo
   const [date, setDate] = useState(initialDate);
   const existing = checkIn(data, routine.id, date);
   const [bookId, setBookId] = useState(initialCheckIn?.bookId ?? data.currentBookId);
-  const [minutes, setMinutes] = useState(initialCheckIn?.minutes ?? routine.target);
+  const [minutes, setMinutes] = useState(initialCheckIn?.minutes ?? (routine.schedule === 'weekly' ? 20 : routine.target));
   const [page, setPage] = useState(initialCheckIn?.page ?? bookPage(data, initialCheckIn?.bookId ?? data.currentBookId));
   const [change, setChange] = useState(false);
   const [error, setError] = useState('');
-  const book = data.books.find(b => b.id === bookId)!;
+  const book = data.books.find(b => b.id === bookId);
   const baseline = bookPage(data, bookId, date);
   function changeDate(next: string) {
     setDate(next); const value = checkIn(data, routine.id, next);
-    setMinutes(value?.minutes ?? routine.target); setBookId(value?.bookId ?? data.currentBookId);
+    setMinutes(value?.minutes ?? (routine.schedule === 'weekly' ? 20 : routine.target)); setBookId(value?.bookId ?? data.currentBookId);
     setPage(value?.page ?? bookPage(data, value?.bookId ?? data.currentBookId));
   }
-  if (change) return <BookSelector data={data} onChange={onChange} onClose={() => setChange(false)} onSelect={(id, currentPage) => { setBookId(id); setPage(currentPage); setChange(false); }} />;
+  if (change || !book) return <BookSelector data={data} onChange={onChange} onClose={() => { if (!book) onClose(); else setChange(false); }} onSelect={(id, currentPage) => { setBookId(id); setPage(currentPage); setChange(false); }} />;
   return <Sheet title="Log reading" onClose={onClose}>
     <form onSubmit={event => { event.preventDefault(); try { onChange(putCheckIn(data, { routineId: routine.id, date, status: 'done', minutes, bookId, page })); onClose(); } catch (error) { setError((error as Error).message); } }}>
       <div className="reading-book"><div className="book-cover" aria-hidden="true" /><div className="book-info"><strong>{book.title}</strong><span>{book.author}</span><div className="book-progress"><div className="progress-track"><i style={{ width: `${bookPage(data, bookId) / book.pages * 100}%` }} /></div><span>{bookPage(data, bookId)} / {book.pages}</span></div></div><button type="button" className="text-action habit-text" onClick={() => setChange(true)}>Change</button></div>
       <fieldset className="reading-field"><legend className="eyebrow">Time read</legend><div className="reading-options">{[...new Set([10, 20, 30, 45, minutes])].sort((a, b) => a - b).map(value => <button key={value} type="button" className="option" aria-pressed={minutes === value} onClick={() => setMinutes(value)}>{value} min</button>)}</div></fieldset>
       <fieldset className="reading-field"><legend className="eyebrow">Now on page</legend><div className="page-stepper"><button type="button" className="step-button" aria-label="Fewer pages" disabled={page <= 0} onClick={() => setPage(page - 1)}><Icon name="minus" /></button><div><input aria-label="Now on page" type="number" min="0" max={book.pages} required value={Number.isNaN(page) ? '' : page} onChange={event => setPage(event.target.value === '' ? NaN : Number(event.target.value))} /><span className="mono">{page - baseline >= 0 ? '+' : ''}{Number.isFinite(page) ? page - baseline : '—'} pages</span></div><button type="button" className="step-button" aria-label="More pages" disabled={page >= book.pages} onClick={() => setPage(page + 1)}><Icon name="plus" /></button></div></fieldset>
-      <fieldset className="reading-field"><legend className="eyebrow">For</legend><div className="reading-options">{[...new Set([localDate(), addDays(localDate(), -1), initialDate])].filter(d => scheduled(routine, d)).map(d => <button type="button" className="option date-option" aria-pressed={date === d} key={d} onClick={() => changeDate(d)}>{d === localDate() ? 'Today · ' : d === addDays(localDate(), -1) ? 'Yesterday · ' : ''}{shortDate(d, { weekday: 'short', day: 'numeric' })}</button>)}</div></fieldset>
+      <fieldset className="reading-field"><legend className="eyebrow">For</legend><div className="reading-options">{[...new Set([localDate(), addDays(localDate(), -1), initialDate])].filter(d => d >= routine.start && (scheduled(routine, d, data.checkIns.filter(c => c.routineId === routine.id && c.status === 'done').map(c => c.date)) || routine.schedule === 'weekly')).map(d => <button type="button" className="option date-option" aria-pressed={date === d} key={d} onClick={() => changeDate(d)}>{d === localDate() ? 'Today · ' : d === addDays(localDate(), -1) ? 'Yesterday · ' : ''}{shortDate(d, { weekday: 'short', day: 'numeric' })}</button>)}</div></fieldset>
       {error && <p role="alert">{error}</p>}
       <button type="submit" className="save-reading">Save reading</button><p className="sheet-hint">Checks off Read for the day and updates the book.</p>
       {existing && <button type="button" className="text-action full-width" onClick={() => { onChange({ ...data, checkIns: data.checkIns.filter(c => c.routineId !== routine.id || c.date !== date) }); onClose(); }}>Clear this check-in</button>}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { BleClient } from '@capacitor-community/bluetooth-le';
-import { exercises, planPresets, prescriptionLabel, workSeconds, workoutMinutes, workoutPlans, workoutPresets, type HoldPrescription, type PacedPrescription, type TimedPrescription, type WorkoutPlan, type WorkoutPreset } from '../../workouts/fixtures';
+import { exercises, planPresets, rehabPlanNote, resolvePreset, prescriptionLabel, workSeconds, workoutMinutes, workoutPlans, workoutPresets, type HoldPrescription, type PacedPrescription, type TimedPrescription, type WorkoutPlan, type WorkoutPreset } from '../../workouts/fixtures';
 import { remainingSeconds, type MeasurementSource, type Session, type SetResult, type TracePoint } from '../../workouts/session';
 import { loadSessions, saveSession } from '../../workouts/storage';
 import { useWorkoutSession } from './use-session';
@@ -9,6 +9,7 @@ import { progressorAvailability } from '../../workouts/bluetooth-support';
 import { exerciseSummary, prescribedSets, sessionName, summariseWorkout } from '../../workouts/workout';
 import './train.scss';
 import '../home/home.scss';
+import { useRehab } from '../../rehab/use-rehab';
 import { InDevelopment, PrimaryNav } from '../app-navigation';
 
 const sourceLabel = (source: MeasurementSource) => ({ manual: 'Manual entry', tindeq: 'Tindeq Progressor', simulator: 'Simulator · test only' }[source]);
@@ -77,10 +78,10 @@ function Review({ session, onDone, saved = false }: { session: Session; onDone: 
       {session.workout ? <div className="workout-result-list">{session.workout.sessions.map(exerciseSession => <details key={exerciseSession.id} className="exercise-result"><summary><span className="category-hold" /><span><strong>{exerciseSession.preset.name}</strong><small>{exerciseSummary(exerciseSession)}</small></span><Chevron /></summary><ol className="set-list" aria-label={`${exerciseSession.preset.name} sets`}>{exerciseSession.sets.map(result => <SetSummary key={result.set} result={result} />)}</ol></details>)}</div> : <><h2 className="train-eyebrow">Kept sets</h2>{session.sets.length ? <ol className="set-list" aria-label="Completed sets">{session.sets.map(result => <SetSummary key={result.set} result={result} />)}</ol> : <p className="train-notice">No sets kept yet. Return to Train to start a workout.</p>}</>}
       {!!interrupted && <p className="train-muted">{interrupted} interrupted attempt(s) excluded from kept sets.</p>}
     </section>
-    <details className="prescription-details"><summary>Prescription snapshot <Chevron /></summary>{(session.workout?.prescriptions ?? [session.preset]).map(preset => <div key={preset.id}><p><strong>{preset.name}</strong> · {prescriptionLabel(preset.prescription)}{preset.locked ? ` · ${preset.locked.label}` : ''}</p>{preset.prescription.kind === 'hold' && <p>{preset.prescription.hand} hand · {preset.prescription.edgeMm} mm · {preset.prescription.grip}</p>}<p>{preset.prescription.restSeconds} s rest between sets</p></div>)}</details>
-    {session.exercise.category === 'rehab' && <fieldset className="symptom-choices"><legend>How did the finger feel?</legend>{(['No pain', 'Familiar, settled', 'Worse'] as const).map(value => <button type="button" key={value} aria-pressed={feeling === value} disabled={didSave} onClick={() => setFeeling(value)}>{value}</button>)}</fieldset>}
+    <details className="prescription-details"><summary>Prescription snapshot <Chevron /></summary>{(session.workout?.prescriptions ?? [session.preset]).map(preset => <div key={preset.id}><p><strong>{preset.name}</strong> · {prescriptionLabel(preset.prescription)}{preset.locked ? ` · ${preset.locked.label}` : ''}</p>{preset.prescription.kind === 'hold' && <p>{preset.prescription.hand} hand · {preset.prescription.edgeMm} mm · {preset.prescription.grip}</p>}<p>{preset.prescription.kind === 'timed' && preset.prescription.selfPacedRest ? 'Rest as needed between sets' : `${preset.prescription.restSeconds} s rest between sets`}</p></div>)}</details>
+    {session.exercise.category === 'rehab' && <fieldset className="symptom-choices"><legend>How did the rehab area feel?</legend>{(['No pain', 'Familiar, settled', 'Worse'] as const).map(value => <button type="button" key={value} aria-pressed={feeling === value} disabled={didSave} onClick={() => setFeeling(value)}>{value}</button>)}</fieldset>}
     <label className="train-field symptom-field">Symptom note <span className="train-muted">· optional</span>
-      <textarea value={note} readOnly={didSave} placeholder={session.exercise.category === 'rehab' ? 'Pulley, tendon or swelling changes?' : 'How did the workout feel?'} maxLength={2000} onChange={event => setNote(event.target.value)} />
+      <textarea value={note} readOnly={didSave} placeholder={session.exercise.category === 'rehab' ? 'Pain (0–10), swelling, and any changes?' : 'How did the workout feel?'} maxLength={2000} onChange={event => setNote(event.target.value)} />
     </label>
     {simulated && <p className="train-muted">Test results stay separate from workout history and the journal.</p>}
     {error && <p role="alert" className="train-notice">{error}</p>}
@@ -117,8 +118,8 @@ function GuidedSet({ prescription: p, session, now, remaining, cue }: { prescrip
   const ready = session.phase === 'ready';
   return <section className="session-card guided-card">
     <span className="train-eyebrow">{preparing ? 'Get ready' : session.pausedAt !== undefined ? 'Paused' : session.phase === 'result' ? session.candidate?.status === 'interrupted' ? 'Set interrupted' : 'Set stopped' : p.kind === 'paced' ? 'Rep' : 'Hold steady'}</span>
-    {p.kind === 'paced' && !preparing && session.phase !== 'result' ? <div className="paced-movement"><div className="big-reps">{Math.min(p.reps, Math.floor(elapsed / cycle) + 1)}<small>/ {p.reps}</small></div><div className="movement-name">{p.steps[stepIndex].label}</div><div className="movement-dots" aria-label={`Position ${stepIndex + 1} of ${p.steps.length}`}>{p.steps.map((step, i) => <span key={step.label} className={i === stepIndex ? 'is-current' : ''} />)}</div><div className="big-timer" role="timer" aria-label="Exercise remaining">{clock(remaining)}</div><div className="hold-progress"><span style={{ width: `${remaining / total * 100}%` }} /></div></div> : <TimerRing seconds={ready ? total : session.phase === 'result' ? Math.round(session.candidate?.durationSeconds ?? 0) : remaining} total={session.phase === 'preparing' ? 5 : total} label={ready ? 'Exercise duration' : preparing ? 'Starting in' : 'Hold remaining'} caption={ready ? 'ready when you are' : preparing ? 'starting in' : session.phase === 'result' ? 'recorded' : 'remaining'} />}
-    <div className="session-info"><strong>{preparing ? prescriptionLabel(p) : p.kind === 'timed' ? 'Squeeze without movement' : 'Move gently through each position'}</strong><span>{cue}</span></div>
+    {p.kind === 'paced' && !preparing && session.phase !== 'result' ? <div className="paced-movement"><div className="big-reps">{Math.min(p.reps, Math.floor(elapsed / cycle) + 1)}<small>/ {p.reps}</small></div><div className="movement-name">{session.awaitingReset ? 'Use the other hand to raise the weight' : p.steps[stepIndex].label}</div><div className="movement-dots" aria-label={`Position ${stepIndex + 1} of ${p.steps.length}`}>{p.steps.map((step, i) => <span key={step.label} className={i === stepIndex ? 'is-current' : ''} />)}</div><div className="big-timer" role="timer" aria-label="Exercise remaining">{clock(remaining)}</div><div className="hold-progress"><span style={{ width: `${remaining / total * 100}%` }} /></div></div> : <TimerRing seconds={ready ? total : session.phase === 'result' ? Math.round(session.candidate?.durationSeconds ?? 0) : remaining} total={session.phase === 'preparing' ? 5 : total} label={ready ? 'Exercise duration' : preparing ? 'Starting in' : 'Hold remaining'} caption={ready ? 'ready when you are' : preparing ? 'starting in' : session.phase === 'result' ? 'recorded' : 'remaining'} />}
+    <div className="session-info"><strong>{preparing ? prescriptionLabel(p) : p.kind === 'timed' ? 'Grip without movement' : 'Follow the movement cues'}</strong><span>{cue}</span></div>
   </section>;
 }
 function ActiveSession({ preset, source, onDone, onComplete, position }: { preset: WorkoutPreset; source: MeasurementSource; onDone: () => void; onComplete?: (session: Session) => void; position?: string }) {
@@ -144,20 +145,20 @@ function ActiveSession({ preset, source, onDone, onComplete, position }: { prese
   const remaining = remainingSeconds(session, now);
   return <main className="train-page session-page" data-category={exercise.category} data-phase={session.phase}>
     <Header title="Active session" back={onComplete ? 'Stop' : 'Review & finish'} onBack={onComplete ? () => setConfirmStop(true) : review} counter={`Set ${session.currentSet} / ${p.sets}`} />
-    <span className="train-eyebrow">{position ?? `${exercise.category === 'rehab' ? 'Finger rehab' : 'Strength'} · ${session.phase === 'rest' ? 'Rest' : session.phase === 'result' ? 'Set result' : 'In session'}`}</span>
+    <span className="train-eyebrow">{position ?? `${exercise.category === 'rehab' ? 'Rehab' : 'Strength'} · ${session.phase === 'rest' ? 'Rest' : session.phase === 'result' ? 'Set result' : 'In session'}`}</span>
     <h1>{preset.name}</h1>
     <p className="train-subtitle">{p.kind === 'reps' ? `Target ${p.reps} reps · ${p.addedLoadKg ? `+${p.addedLoadKg} kg` : 'bodyweight'}` : p.kind === 'hold' ? `${p.hand} hand · ${p.edgeMm} mm · ${p.grip}` : exercise.description}</p>
     <div className="set-progress" aria-label={`${session.sets.length} of ${p.sets} sets kept`}>{Array.from({ length: p.sets }, (_, i) => <span key={i} className={i < session.sets.length ? 'is-kept' : i === session.currentSet - 1 ? 'is-current' : ''} />)}</div>
     {session.phase === 'rest' ? <>
       <section className="session-card rest-card">
         <span className="train-eyebrow">Rest</span>
-        <TimerRing seconds={remaining} total={p.restSeconds} label="Rest remaining" caption="until next set" />
+        {p.kind === 'timed' && p.selfPacedRest ? <p>Rest as needed. Start the next set when ready.</p> : <TimerRing seconds={remaining} total={p.restSeconds} label="Rest remaining" caption="until next set" />}
         <div className="session-info"><span className="kept-info"><Check /> Set {session.currentSet} kept{session.sets.at(-1)?.meanKg !== undefined ? ` · ${session.sets.at(-1)!.meanKg!.toFixed(1)} kg mean` : ''}</span><strong>Next: set {session.sets.length + 1} of {p.sets}</strong><span>{p.kind === 'hold' || p.kind === 'timed' ? `${p.holdSeconds} s hold${p.kind === 'hold' ? ` · ~${p.targetKg} kg` : ''}` : `${p.reps} reps`}</span></div>
       </section>
-      <div className="train-action-bar"><div className="result-actions"><button className="train-secondary" onClick={() => act({ type: 'extend-rest', seconds: 15 })}>+15 s</button><button className="train-primary" onClick={() => { act({ type: 'skip-rest' }); if (p.kind === 'timed' || p.kind === 'paced') act({ type: 'prepare', now: Date.now() }); }}>Skip rest</button></div><button className="train-text-button" onClick={review}>Finish early & review</button></div>
+      <div className="train-action-bar"><div className="result-actions">{!(p.kind === 'timed' && p.selfPacedRest) && <button className="train-secondary" onClick={() => act({ type: 'extend-rest', seconds: 15 })}>+15 s</button>}<button className="train-primary" onClick={() => { act({ type: 'skip-rest' }); if (p.kind === 'timed' || p.kind === 'paced') act({ type: 'prepare', now: Date.now() }); }}>{p.kind === 'timed' && p.selfPacedRest ? 'Next set' : 'Skip rest'}</button></div><button className="train-text-button" onClick={review}>Finish early & review</button></div>
     </> : p.kind === 'timed' || p.kind === 'paced' ? <>
       <GuidedSet prescription={p} session={session} now={now} remaining={remaining} cue={exercise.cue ?? exercise.description} />
-      <div className="train-action-bar">{session.phase === 'result' ? <><div className="result-actions">{!interrupted && <button className="train-primary" disabled={!candidate?.durationSeconds || (p.kind === 'paced' && !candidate.reps)} onClick={() => act({ type: 'keep', now: Date.now() })}>Keep set</button>}<button className={interrupted ? 'train-primary' : 'train-secondary'} onClick={() => { act({ type: 'retry' }); act({ type: 'prepare', now: Date.now() }); }}>Retry set {session.currentSet}</button></div>{candidate?.reason && <p role="alert">{candidate.reason}</p>}<button className="train-text-button" onClick={review}>Finish early & review kept sets</button></> : session.phase === 'holding' ? <div className="result-actions"><button className="train-secondary" onClick={() => act({ type: session.pausedAt === undefined ? 'pause' : 'resume', now: Date.now() })}>{session.pausedAt === undefined ? 'Pause' : 'Resume'}</button><button className="train-primary" onClick={() => act({ type: 'stop', now: Date.now() })}>Finish set</button></div> : <button className="train-primary" onClick={() => void start()}>{p.kind === 'paced' ? 'Start glides' : 'Start hold'}</button>}</div>
+      <div className="train-action-bar">{session.phase === 'result' ? <><div className="result-actions">{!interrupted && <button className="train-primary" disabled={!candidate?.durationSeconds || (p.kind === 'paced' && !candidate.reps)} onClick={() => act({ type: 'keep', now: Date.now() })}>Keep set</button>}<button className={interrupted ? 'train-primary' : 'train-secondary'} onClick={() => { act({ type: 'retry' }); act({ type: 'prepare', now: Date.now() }); }}>Retry set {session.currentSet}</button></div>{candidate?.reason && <p role="alert">{candidate.reason}</p>}<button className="train-text-button" onClick={review}>Finish early & review kept sets</button></> : session.phase === 'holding' ? <div className="result-actions"><button className="train-secondary" onClick={() => act({ type: session.pausedAt === undefined ? 'pause' : 'resume', now: Date.now() })}>{session.pausedAt === undefined ? 'Pause' : session.awaitingReset ? 'Weight returned · next rep' : 'Resume'}</button><button className="train-primary" onClick={() => act({ type: 'stop', now: Date.now() })}>Finish set</button></div> : <button className="train-primary" onClick={() => void start()}>{p.kind === 'paced' ? 'Start exercise' : 'Start hold'}</button>}</div>
     </> : p.kind === 'reps' ? <form className="rep-form" onSubmit={event => {
       event.preventDefault(); act({ type: 'complete-reps', now: Date.now(), reps: Number(reps), addedLoadKg: Number(load) });
     }}>
@@ -202,7 +203,7 @@ function Lock() {
 function SourcePicker({ source, onChange }: { source: MeasurementSource; onChange: (source: MeasurementSource) => void }) {
   const bluetooth = progressorAvailability();
   return <details className="workout-source"><summary><span className="device-dot" /><span><strong>{sourceLabel(source)}</strong><small>{source === 'tindeq' ? 'Connect and tare before the drag holds' : source === 'manual' ? 'Timed holds · enter measured force' : 'Generated force · excluded from history'}</small></span><span className="source-change">Change</span></summary>
-    <fieldset className="source-choices"><legend>Record force with</legend>{(['tindeq', 'manual', 'simulator'] as const).map(option => <label key={option}><input type="radio" name="workout-source" checked={source === option} disabled={option === 'tindeq' && !bluetooth.available} onChange={() => onChange(option)} /><span>{sourceLabel(option)}<small>{option === 'tindeq' ? 'Real measurements over Bluetooth' : option === 'manual' ? 'Enter the measured mean after each hold' : 'Test only · no real workout history'}</small></span></label>)}</fieldset>
+    <fieldset className="source-choices"><legend>Record force with</legend>{(['tindeq', 'manual', ...(import.meta.env.DEV ? ['simulator' as const] : [])] as const).map(option => <label key={option}><input type="radio" name="workout-source" checked={source === option} disabled={option === 'tindeq' && !bluetooth.available} onChange={() => onChange(option)} /><span>{sourceLabel(option)}<small>{option === 'tindeq' ? 'Real measurements over Bluetooth' : option === 'manual' ? 'Enter the measured mean after each hold' : 'Test only · no real workout history'}</small></span></label>)}</fieldset>
     {!bluetooth.available && <p className="train-notice">{bluetooth.reason}</p>}
   </details>;
 }
@@ -214,11 +215,13 @@ function WorkoutFlow({ plan, onDone }: { plan: WorkoutPlan; onDone: () => void }
   const [sessions, setSessions] = useState<Session[]>([]);
   const [running, setRunning] = useState<WorkoutPreset | null>(null);
   const [review, setReview] = useState<Session | null>(null);
-  const runnable = snapshot.presets.filter(preset => !preset.locked);
+  const [optional, setOptional] = useState<string[]>([]);
+  const selected = snapshot.presets.filter(preset => !preset.optional || optional.includes(preset.id));
+  const runnable = selected.filter(preset => !preset.locked);
   const next = runnable.find(preset => !sessions.some(session => session.preset.id === preset.id));
   const hasForce = runnable.some(preset => preset.prescription.kind === 'hold');
-  const category = categoryOf(runnable[0]);
-  const summarise = (results: Session[]) => summariseWorkout(snapshot.plan, snapshot.presets, results, source === 'simulator' && hasForce ? 'simulator' : results.some(session => session.source === 'tindeq') ? 'tindeq' : 'manual', workoutId, startedAt);
+  const category = categoryOf(snapshot.presets[0]);
+  const summarise = (results: Session[]) => summariseWorkout(snapshot.plan, selected, results, source === 'simulator' && hasForce ? 'simulator' : results.some(session => session.source === 'tindeq') ? 'tindeq' : 'manual', workoutId, startedAt);
   function complete(session: Session) {
     const results = session.sets.length ? [...sessions, session] : sessions;
     setSessions(results); setRunning(null); window.scrollTo(0, 0);
@@ -228,13 +231,13 @@ function WorkoutFlow({ plan, onDone }: { plan: WorkoutPlan; onDone: () => void }
   if (running) return <ActiveSession key={running.id} preset={running} source={running.prescription.kind === 'hold' ? source : 'manual'} onDone={onDone} onComplete={complete} position={`Exercise ${runnable.indexOf(running) + 1} / ${runnable.length}`} />;
   return <main className="train-page preview-page workout-overview" data-category={category}>
     <Header title="Workout preview" back="Train" onBack={onDone} />
-    <h1>{snapshot.plan.name}</h1><p className="train-subtitle">{runnable.length} {runnable.length === 1 ? 'exercise' : 'exercises'} · ~{workoutMinutes(snapshot.plan)} min · {snapshot.plan.description}</p>
+    <h1>{snapshot.plan.name}</h1><p className="train-subtitle">{runnable.length} {runnable.length === 1 ? 'exercise' : 'exercises'} · ~{workoutMinutes(snapshot.plan, runnable.map(preset => ({ ...preset, optional: false })))} min · {rehabPlanNote(snapshot.plan)}</p>
     {hasForce && <SourcePicker source={source} onChange={setSource} />}
     <ol className="exercise-preview-list" aria-label="Workout exercises">{snapshot.presets.map((preset, index) => {
       const result = sessions.find(session => session.preset.id === preset.id);
       const upNext = next?.id === preset.id;
       return <li key={preset.id} className={`exercise-preview${preset.locked ? ' is-locked' : ''}${result ? ' is-complete' : ''}${upNext ? ' is-next' : ''}`}>
-        <span className="exercise-order">{preset.locked ? <Lock /> : result ? <Check /> : index + 1}</span><div><strong>{preset.name}</strong><small>{result ? exerciseSummary(result) : prescriptionLabel(preset.prescription)}</small>{preset.locked && <p>{preset.locked.note}</p>}</div>{preset.locked ? <span className="exercise-tag">{preset.locked.label}</span> : upNext ? <span className="exercise-tag">Up next</span> : null}
+        <span className="exercise-order">{preset.locked ? <Lock /> : result ? <Check /> : index + 1}</span><div><strong>{preset.name}</strong><small>{result ? exerciseSummary(result) : preset.locked ? preset.locked.label : prescriptionLabel(preset.prescription)}</small>{preset.locked && <p>{preset.locked.note}</p>}{preset.optional && <label className="optional-exercise"><input type="checkbox" checked={optional.includes(preset.id)} disabled={!!sessions.length} onChange={event => setOptional(current => event.target.checked ? [...current, preset.id] : current.filter(id => id !== preset.id))} /> Include optional exercise</label>}</div>{preset.locked ? <span className="exercise-tag">{preset.locked.label}</span> : upNext ? <span className="exercise-tag">Up next</span> : null}
       </li>;
     })}</ol>
     <div className="train-action-bar">{next && <button className="train-primary" onClick={() => { setRunning(next); window.scrollTo(0, 0); }}>{sessions.length ? `Start ${next.name.toLowerCase()}` : 'Start workout'}</button>}{!!sessions.length && <button className="train-text-button" onClick={() => setReview(summarise(sessions))}>Finish workout & review</button>}</div>
@@ -247,7 +250,9 @@ function TrainScreens({ presetId }: { presetId?: string }) {
   const [history, setHistory] = useState(loadSessions);
   const [today] = useState(() => new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }));
   const [detail, setDetail] = useState<Session | null>(null);
-  const preset = workoutPresets.find(p => p.id === presetId);
+  const rehab = useRehab();
+  const base = workoutPresets.find(p => p.id === presetId);
+  const preset = base ? resolvePreset(base, rehab.data) : undefined;
   const plan = workoutPlans.find(plan => plan.id === presetId);
   function done() { setActive(null); setDetail(null); setHistory(loadSessions()); navigate('/train'); }
   function open(plan: WorkoutPlan) { setActive(null); navigate(`/train/${plan.id}`); }
@@ -260,17 +265,17 @@ function TrainScreens({ presetId }: { presetId?: string }) {
     return <main className="train-page preview-page" data-category={exercise.category}>
       <Header title="Workout preview" back="Train" onBack={done} />
       <span className="train-eyebrow">{exercise.category === 'rehab' ? 'Rehab' : 'Strength'} · Workout</span><h1>{preset.name}</h1><p className="train-subtitle">{exercise.description}</p>
-      <section className="train-card prescription-card"><div className="prescription-heading"><span className="set-number">1</span><div><span className="train-eyebrow">The plan</span><h2>{prescriptionLabel(p)}</h2></div></div>
+      <section className="train-card prescription-card"><div className="prescription-heading"><span className="set-number">1</span><div><span className="train-eyebrow">The plan</span><h2>{preset.locked ? preset.locked.label : prescriptionLabel(p)}</h2></div></div>
         {p.kind === 'hold' && <p className="grip-description">{p.hand} hand · {p.edgeMm} mm · {p.grip}</p>}
-        <dl className="prescription-stats"><div><dt>Sets</dt><dd>{p.sets}</dd></div><div><dt>{p.kind === 'hold' ? 'Hold' : 'Reps'}</dt><dd>{p.kind === 'hold' || p.kind === 'timed' ? `${p.holdSeconds} s` : p.reps}</dd></div><div><dt>Rest</dt><dd>{clock(p.restSeconds)}</dd></div></dl>
-        <p className="prescription-hint">{p.kind === 'hold' ? 'Hold, check the result, then keep or retry each set.' : 'Record your actual reps and added load after each set.'}</p>
+        <dl className="prescription-stats"><div><dt>Sets</dt><dd>{p.sets}</dd></div><div><dt>{p.kind === 'hold' ? 'Hold' : 'Reps'}</dt><dd>{p.kind === 'hold' || p.kind === 'timed' ? `${p.holdSeconds} s` : p.reps}</dd></div><div><dt>Rest</dt><dd>{p.kind === 'timed' && p.selfPacedRest ? 'As needed' : clock(p.restSeconds)}</dd></div></dl>
+        <p className="prescription-hint">{p.kind === 'hold' ? 'Hold, check the result, then keep or retry each set.' : p.kind === 'reps' ? 'Record your actual reps and added load after each set.' : 'Follow the timer and movement cues. Pause or finish early whenever needed.'}</p>
       </section>
-      {p.kind === 'hold' && <fieldset className="source-choices"><legend>Record force with</legend>{(['tindeq', 'manual', 'simulator'] as const).map(option => <label key={option}>
+      {p.kind === 'hold' && <fieldset className="source-choices"><legend>Record force with</legend>{(['tindeq', 'manual', ...(import.meta.env.DEV ? ['simulator' as const] : [])] as const).map(option => <label key={option}>
         <input type="radio" name="source" checked={source === option} disabled={option === 'tindeq' && !bluetooth.available} aria-describedby={option === 'tindeq' && !bluetooth.available ? 'bluetooth-help' : undefined} onChange={() => setSource(option)} />
         <span>{sourceLabel(option)}<small>{option === 'tindeq' ? 'Real measurements over Bluetooth' : option === 'manual' ? 'Timed hold · enter the measured mean' : 'Generated force · no workout history'}</small></span>
       </label>)}</fieldset>}
       {p.kind === 'hold' && !Capacitor.isNativePlatform() && <p id="bluetooth-help" className="train-notice">{bluetooth.reason || 'Real Progressor measurements via Web Bluetooth. Turn on Bluetooth and your Progressor, then select it in the browser’s Connect dialog. Close other apps connected to it.'}</p>}
-      <div className="train-action-bar"><button className="train-primary" onClick={() => { setActive({ preset, source: p.kind === 'reps' ? 'manual' : source }); window.scrollTo(0, 0); }}>Start workout</button><p>{p.kind === 'hold' && source !== 'manual' ? 'Next: connect, remove all load, then tare.' : 'One set at a time. Finish early whenever you need.'}</p></div>
+      <div className="train-action-bar">{preset.locked && <p role="status">{preset.locked.note}</p>}<button className="train-primary" disabled={!!preset.locked} onClick={() => { setActive({ preset, source: p.kind === 'hold' ? source : 'manual' }); window.scrollTo(0, 0); }}>Start workout</button><p>{p.kind === 'hold' && source !== 'manual' ? 'Next: connect, remove all load, then tare.' : 'One set at a time. Finish early whenever you need.'}</p></div>
     </main>;
   }
   const featured = workoutPlans.find(plan => plan.featured) ?? workoutPlans[0];
@@ -279,21 +284,20 @@ function TrainScreens({ presetId }: { presetId?: string }) {
   const lastFeatured = history.find(session => session.workout?.plan.id === featured.id);
   return <main className="train-page train-home">
     <header className="train-home-heading"><span className="train-eyebrow">{today}</span><h1>Train</h1></header>
-    <div className="train-device-row"><span className="device-dot" aria-hidden="true" /><div><strong>Tindeq Progressor</strong><small>Not connected</small></div><button onClick={() => open(featured)}>Set up<Chevron /></button></div>
     <section className="train-card featured-workout" data-category={categoryOf(featuredPresets[0])}>
       <div className="featured-heading"><span className="train-eyebrow">Today’s workout</span><span className="train-muted">{lastFeatured ? `Last: ${new Date(lastFeatured.startedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Ready when you are'}</span></div>
-      <h2>{featured.name}</h2><p>{featured.description}</p>
-      <ul className="featured-exercises">{featuredPresets.map(preset => <li key={preset.id} className={preset.locked ? 'is-locked' : ''}><span className="category-hold" /><strong>{preset.name}</strong><span>{preset.locked ? <><Lock /> {preset.locked.label}</> : prescriptionLabel(preset.prescription)}</span></li>)}</ul>
+      <h2>{featured.name}</h2><p>{rehabPlanNote(featured, rehab.data)}</p>
+      <ul className="featured-exercises">{featuredPresets.map(preset => <li key={preset.id} className={preset.locked ? 'is-locked' : ''}><span className="category-hold" /><strong>{preset.name}</strong><span>{preset.locked ? <><Lock /> {preset.locked.label}</> : `${prescriptionLabel(preset.prescription)}${preset.optional ? ' · optional' : ''}`}</span></li>)}</ul>
       <div className="featured-meta">~{workoutMinutes(featured)} min · includes rests</div>
       <button className="train-primary" onClick={() => open(featured)}>Open workout</button>
     </section>
     <section className="other-workouts"><h2 className="train-eyebrow">Other workouts</h2><div className="workout-presets">{otherPlans.map(plan => <button className="workout-preset" key={plan.id} data-category={categoryOf(planPresets(plan)[0])} onClick={() => open(plan)}>
-      <span className="category-hold" aria-hidden="true" /><span><strong>{plan.name}</strong><small>{plan.description}</small></span><span className="workout-duration">~{workoutMinutes(plan)} min</span><Chevron />
+      <span className="category-hold" aria-hidden="true" /><span><strong>{plan.name}</strong><small>{rehabPlanNote(plan, rehab.data)}</small></span><span className="workout-duration">~{workoutMinutes(plan)} min</span><Chevron />
     </button>)}</div></section>
     <section className="workout-history"><h2 className="train-eyebrow">Recent</h2><div className="history-list">{history.length ? history.map(session => <button className="history-row" key={session.id} onClick={() => setDetail(session)}>
       <span className="history-date">{new Date(session.startedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span><span><strong>{sessionName(session)}</strong><small>{session.workout ? `${session.workout.sessions.length} exercises` : `${session.sets.length} sets`} · {sourceLabel(session.source)}</small></span><Chevron />
     </button>) : <p className="history-empty">Your saved workouts will appear here.</p>}</div></section>
-    <details className="simulator-history"><summary>Simulator tests</summary><p>Test results stay separate from workout history and the journal.</p>{loadSessions(localStorage, true).map(session => <button className="history-row" key={session.id} onClick={() => setDetail(session)}>{sessionName(session)} · {session.sets.length} sets<Chevron /></button>)}</details>
+    {import.meta.env.DEV && <details className="simulator-history"><summary>Simulator tests</summary><p>Test results stay separate from workout history and the journal.</p>{loadSessions(localStorage, true).map(session => <button className="history-row" key={session.id} onClick={() => setDetail(session)}>{sessionName(session)} · {session.sets.length} sets<Chevron /></button>)}</details>}
     <PrimaryNav active="train" />
   </main>;
 }

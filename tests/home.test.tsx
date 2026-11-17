@@ -1,15 +1,16 @@
+import { seedRoutines, seedDays } from './fixtures/journal.ts';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Home from '../src/components/home/home';
 import LibraryPage from '../src/components/home/library-pages';
 import App from '../src/App';
-import { ROUTINES_KEY, seedRoutines, type RoutineData } from '../src/routines/data';
+import { ROUTINES_KEY, type RoutineData } from '../src/routines/data';
 import { DueToday } from '../src/routines/due-today';
-import { chartResources, seedDays, type Day } from '../src/components/home/journal-data';
-import type { Editor } from '@tiptap/core';
+import { chartResources, type Day } from '../src/components/home/journal-data';
+import { emptyRehab, personalRehab } from '../src/rehab/data';
 
 const saved = () => JSON.parse(localStorage.getItem(ROUTINES_KEY)!) as RoutineData;
-const journal = () => JSON.parse(localStorage.getItem('pincht.journal.v1')!) as Day[];
+const journal = () => JSON.parse(localStorage.getItem('pincht.journal.live')!) as Day[];
 async function navigate(date?: string) {
   await act(async () => {
     window.history.replaceState(null, '', `/#/journal${date ? `/${date}` : ''}`);
@@ -25,6 +26,9 @@ async function change(label: string | RegExp, value: string) {
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-16T12:00:00Z'));
   localStorage.clear();
+  localStorage.setItem(ROUTINES_KEY, JSON.stringify(seedRoutines('2026-11-16')));
+  localStorage.setItem('pincht.journal.live', JSON.stringify(seedDays));
+  Object.assign(personalRehab, { ...emptyRehab(), pulleyStart: '2026-10-31', wristStart: '2026-11-16' });
   window.history.replaceState(null, '', '/#/journal');
   window.scrollTo = vi.fn();
   Object.defineProperties(HTMLDialogElement.prototype, {
@@ -49,21 +53,19 @@ describe('Today and journal flows', () => {
     expect(within(breakdown).getByRole('link', { name: 'Mobility Open workout' }).getAttribute('href')).toBe('#/train/mobility');
     expect(within(breakdown).getByText('3 × 5 reps · bodyweight')).toBeTruthy();
     expect(within(breakdown).getByText('Tendon glides')).toBeTruthy();
-    expect(within(breakdown).getByText('Isometric squeeze')).toBeTruthy();
+    expect(within(breakdown).getByText('Isometric mug grips')).toBeTruthy();
     expect(within(breakdown).getByText('6 × 10 s')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Routines' })).toBeNull();
     await click('Required workout');
     expect(screen.queryByRole('region', { name: 'Required workout' })).toBeNull();
   });
 
-  it('starts on Today with tasks and three widgets, and shares updates with the separate journal', async () => {
+  it('starts on To-do with three task sections, and shares updates with the separate journal', async () => {
     window.history.replaceState(null, '', '/');
     render(<App />);
-    expect(screen.getByRole('main', { name: 'Today' })).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Due today' })).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Finger rehab' })).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Sleep' })).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Last seven days' })).toBeTruthy();
+    expect(screen.getByRole('main', { name: 'To-do' })).toBeTruthy();
+    for (const name of ['Today', 'This week', 'Coming up']) expect(screen.getByRole('region', { name })).toBeTruthy();
+    for (const name of ['Finger rehab', 'Sleep', 'Last seven days']) expect(screen.queryByRole('region', { name })).toBeNull();
     expect(screen.queryByPlaceholderText('Journal title')).toBeNull();
     expect(screen.queryByRole('link', { name: 'The high heel worked' })).toBeNull();
     await click('Complete Read for today');
@@ -92,7 +94,7 @@ describe('Today and journal flows', () => {
     const climb = seedDays[0].records.find(r => r.kind === 'climb')!;
     const entry = (title: string) => ({ title, body: { type: 'doc' as const, content: [] } });
     const base = { types: [] as Day['types'], metrics: {}, visibleMetrics: [] as Day['visibleMetrics'] };
-    localStorage.setItem('pincht.journal.v1', JSON.stringify([
+    localStorage.setItem('pincht.journal.live', JSON.stringify([
       { ...base, date: '2026-11-15', records: [climb, sleep], entry: entry('Climbing notes') },
       { ...base, date: '2026-11-14', records: [sleep], types: ['climb'], entry: entry('Rest notes') },
       { ...base, date: '2026-11-13', records: [], entry: { title: 'Remembering a climb', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'recordPill', attrs: { id: climb.id, label: climb.title, category: 'climb' } }] }] } } },
@@ -100,7 +102,7 @@ describe('Today and journal flows', () => {
     window.history.replaceState(null, '', '/#/climbing');
     render(<App />);
     const due = within(screen.getByRole('region', { name: 'Due today' }));
-    expect(due.getByRole('link', { name: /Train/ })).toBeTruthy();
+    expect(due.getByRole('link', { name: /^Train/ })).toBeTruthy();
     expect(due.queryByText(/Read|Alcohol/)).toBeNull();
     expect(due.queryByText(/unlogged/)).toBeNull();
     expect(screen.getByRole('region', { name: 'Finger rehab' })).toBeTruthy();
@@ -145,7 +147,7 @@ describe('Today and journal flows', () => {
       const data = seedRoutines(date);
       data.checkIns = status ? [{ routineId: 'read', date, status, minutes: 20, bookId: 'piranesi' }] : [];
       localStorage.setItem(ROUTINES_KEY, JSON.stringify(data));
-      localStorage.setItem('pincht.journal.v1', JSON.stringify([day]));
+      localStorage.setItem('pincht.journal.live', JSON.stringify([day]));
       const { container, unmount } = render(<Home entryDate={date} />);
       expect(container.querySelector('.entry-date .holds')).toBeNull();
       const pills = [...container.querySelectorAll('.entry-summary .summary-item')];
@@ -183,9 +185,9 @@ describe('Today and journal flows', () => {
     expect(saved().checkIns.find(c => c.routineId === 'read' && c.date === '2026-11-10')?.reason).toBe('travelling');
   });
 
-  it('keeps an earlier routine in Due today after skipping so it can be undone', async () => {
+  it('keeps an earlier routine in To-do after skipping so it can be undone', async () => {
     const { unmount } = render(<Home screen="today" />);
-    const due = within(screen.getByRole('region', { name: 'Due today' }));
+    const due = within(screen.getByRole('main', { name: 'To-do' }));
     expect(due.getByText('Read · Sun 15')).toBeTruthy();
     await click('Skip', due);
     expect(due.getByText('Read · Sun 15')).toBeTruthy();
@@ -197,7 +199,7 @@ describe('Today and journal flows', () => {
     unmount();
 
     render(<Home screen="today" />);
-    const returned = within(screen.getByRole('region', { name: 'Due today' }));
+    const returned = within(screen.getByRole('main', { name: 'To-do' }));
     expect(returned.queryByRole('button', { name: /Undo skipping/ })).toBeNull();
     expect(returned.getByText('Read · Thu 12')).toBeTruthy();
   });
@@ -243,7 +245,7 @@ describe('Today and journal flows', () => {
     } };
     const data = seedRoutines(day.date); data.checkIns = [];
     localStorage.setItem(ROUTINES_KEY, JSON.stringify(data));
-    localStorage.setItem('pincht.journal.v1', JSON.stringify([day, seedDays[0]]));
+    localStorage.setItem('pincht.journal.live', JSON.stringify([day, seedDays[0]]));
     const { container } = render(<Home />);
     const entry = screen.getByLabelText('Journal title').closest('article')!;
     await click('3 records', within(entry));
@@ -273,6 +275,37 @@ describe('Today and journal flows', () => {
     expect(screen.getAllByPlaceholderText('Journal title')).toHaveLength(1);
     expect(screen.getByRole('button', { name: /Monday 16 November/ })).toBeTruthy();
     expect(journal().find(day => day.date === '2026-11-16')?.entry).toBeUndefined();
+  });
+
+  it('keeps today’s composer stable when focusing and toggling task dropdowns', async () => {
+    render(<Home />);
+    const title = screen.getByPlaceholderText('Journal title');
+    const today = title.closest('article')!;
+    const tasks = within(within(today).getByRole('region', { name: 'Today’s tasks' }));
+    const dropdown = tasks.getByRole('button', { name: /^Due today/ });
+    const before = journal();
+
+    expect(today.classList.contains('composer-open')).toBe(false);
+    await act(async () => { dropdown.focus(); });
+    await click(/^Due today/, tasks);
+    expect(dropdown.getAttribute('aria-expanded')).toBe('false');
+    expect(today.classList.contains('composer-open')).toBe(false);
+    await click(/^Due today/, tasks);
+    expect(dropdown.getAttribute('aria-expanded')).toBe('true');
+    const workout = tasks.getByRole('button', { name: 'Required workout' });
+    await act(async () => { workout.focus(); });
+    await click('Required workout', tasks);
+    expect(today.classList.contains('composer-open')).toBe(false);
+
+    const body = within(today).getByRole('textbox', { name: /Journal body/ });
+    await act(async () => { body.focus(); });
+    expect(today.classList.contains('composer-open')).toBe(true);
+    await act(async () => { dropdown.focus(); });
+    await click(/^Due today/, tasks);
+    expect(today.classList.contains('composer-open')).toBe(true);
+    expect(screen.getByPlaceholderText('Journal title')).toBe(title);
+    expect(window.location.hash).toBe('#/journal');
+    expect(journal()).toEqual(before);
   });
 
   it('autosaves today’s title and body, and clearing both restores an unwritten day', async () => {
@@ -311,34 +344,25 @@ describe('Today and journal flows', () => {
     expect(screen.queryByRole('link', { name: 'Quiet fingers again' })).toBeNull();
   });
 
-  it('adds the extra sample writing once without replacing saved writing or records', async () => {
-    const oldDays = structuredClone(seedDays).map(day => ({ ...day, entry: day.date === '2026-11-15' ? day.entry : undefined }));
-    oldDays.find(day => day.date === '2026-11-10')!.entry = { title: 'My own notes', body: { type: 'doc', content: [] } };
-    localStorage.setItem('pincht.journal.v1', JSON.stringify(oldDays));
-    const { unmount } = render(<Home entryDate="2026-11-13" />);
-    expect((screen.getByLabelText('Journal title') as HTMLInputElement).value).toBe('Stopped while the skin was good');
-    expect(journal().find(day => day.date === '2026-11-10')?.entry?.title).toBe('My own notes');
-    expect(journal().find(day => day.date === '2026-11-13')?.records).toEqual(oldDays.find(day => day.date === '2026-11-13')?.records);
-    const body = screen.getByRole('textbox', { name: /Journal body/ }) as HTMLElement & { editor: Editor };
-    await change('Journal title', '');
-    await act(async () => { body.editor.commands.clearContent(); });
-    unmount();
+  it('does not insert sample writing into saved journal days', () => {
+    const days = structuredClone(seedDays).map(day => ({ ...day, entry: undefined }));
+    localStorage.setItem('pincht.journal.live', JSON.stringify(days));
     render(<Home />);
     expect(screen.queryByRole('link', { name: 'Stopped while the skin was good' })).toBeNull();
-    expect(journal().find(day => day.date === '2026-11-13')?.entry).toBeUndefined();
+    expect(journal().every(day => !day.entry)).toBe(true);
   });
-  it('quick completion saves usual reading time without invented pages and collapses after all daily routines', async () => {
+  it('quick completion saves usual reading time without invented pages and keeps unfinished rehab visible', async () => {
     render(<Home screen="today" />);
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link').map(link => link.textContent)).toEqual(['Today', 'Journal', 'Climbing', 'Train']);
-    expect(screen.getByRole('img', { name: '0 of 3 workouts' })).toBeTruthy();
-    expect(within(screen.getByRole('region', { name: 'Due today' })).getByRole('link', { name: /Train.*0 of 3 this week/ }).getAttribute('href')).toBe('#/train');
+    expect(screen.queryByRole('img', { name: '0 of 3 workouts' })).toBeNull();
+    expect(within(screen.getByRole('region', { name: 'This week' })).getByRole('link', { name: /^Train.*0 of 3 this week/ }).getAttribute('href')).toBe('#/train/pull-ups-3x5');
     await click('Complete Read for today');
     expect(saved().checkIns.find(c => c.routineId === 'read' && c.date === '2026-11-16')).toMatchObject({ minutes: 20, bookId: 'piranesi' });
     expect(saved().checkIns.find(c => c.routineId === 'read' && c.date === '2026-11-16')?.page).toBeUndefined();
     await click('Complete Alcohol-free day for today');
-    expect(screen.getByRole('button', { name: /Due today.*2 of 2/ }).getAttribute('aria-expanded')).toBe('false');
-    expect(screen.queryByRole('button', { name: 'Clear Read for today' })).toBeNull();
-    await click(/Due today/);
+    expect(screen.getByText(/2 of 3 done today/)).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Today' })).getByRole('link', { name: 'Open Pulley rehab' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Clear Read for today' })).toBeTruthy();
     await click('Clear Read for today');
     expect(saved().checkIns.some(c => c.routineId === 'read' && c.date === '2026-11-16')).toBe(false);
   });

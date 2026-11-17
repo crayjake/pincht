@@ -1,8 +1,9 @@
+import { seedRoutines, seedDays } from './fixtures/journal.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { daySummary } from '../src/components/home/journal-summary.ts';
-import { seedDays } from '../src/components/home/journal-data.ts';
-import { seedRoutines, withRoutineDays } from '../src/routines/data.ts';
+
+import { withRoutineDays } from '../src/routines/data.ts';
 
 test('summary automatically includes recorded metrics and completed habits, with one item per activity category', () => {
   const date = '2026-11-16';

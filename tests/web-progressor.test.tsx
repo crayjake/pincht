@@ -1,3 +1,4 @@
+import { emptyRehab, personalRehab } from '../src/rehab/data';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Train from '../src/components/train/train';
@@ -51,7 +52,7 @@ beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-15T12:00:00Z'));
   vi.stubGlobal('isSecureContext', true);
   Object.defineProperty(document, 'hidden', { configurable: true, value: false });
-  window.scrollTo = vi.fn(); localStorage.clear();
+  window.scrollTo = vi.fn(); localStorage.clear(); Object.assign(personalRehab, { ...emptyRehab(), pulleyStart: '2026-10-31', wristStart: '2026-11-15' });
 });
 afterEach(async () => { cleanup(); await act(async () => {}); vi.useRealTimers(); vi.unstubAllGlobals(); });
 

@@ -1,3 +1,4 @@
+import { emptyRehab, personalRehab } from '../src/rehab/data';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Train from '../src/components/train/train';
@@ -20,7 +21,7 @@ async function simulator() {
 }
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-15T12:00:00Z'));
-  localStorage.clear(); native.enabled = false; native.appState = undefined; native.remove.mockClear();
+  localStorage.clear(); Object.assign(personalRehab, { ...emptyRehab(), pulleyStart: '2026-10-31', wristStart: '2026-11-15' }); native.enabled = false; native.appState = undefined; native.remove.mockClear();
   vi.stubGlobal('isSecureContext', true);
   Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: undefined });
   Object.defineProperty(document, 'hidden', { configurable: true, value: false });
@@ -121,16 +122,17 @@ describe('reference workout plans', () => {
     render(<Train />);
     expect(screen.getByRole('heading', { name: 'Pulley rehab' })).toBeTruthy();
     expect(screen.getByText('Tendon glides')).toBeTruthy();
-    expect(screen.getByText('Isometric squeeze')).toBeTruthy();
+    expect(screen.getByText('Isometric mug grips')).toBeTruthy();
     expect(screen.getByText('3-finger drag')).toBeTruthy();
-    expect(screen.getByText('From week 2')).toBeTruthy();
+    expect(screen.getByText('After four weeks')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Mobility/ })).toBeTruthy();
   });
 
   it('runs glides → squeeze → drag, excludes the locked half crimp, and saves the whole workout', async () => {
     render(<Train presetId="pulley-rehab" />);
     expect(screen.getByRole('list', { name: 'Workout exercises' }).children).toHaveLength(4);
-    expect(screen.getByText('Starts 1 week after the open-hand drag')).toBeTruthy();
+    expect(screen.getByText('Unlocks after 28 full days.')).toBeTruthy();
+    screen.getAllByRole('checkbox', { name: 'Include optional exercise' }).forEach(input => fireEvent.click(input));
     await click('Start workout');
     expect(screen.getByRole('timer').textContent).toBe('0:05');
     await advance(5000); expect(screen.getByText('Fingers straight')).toBeTruthy();
@@ -140,9 +142,9 @@ describe('reference workout plans', () => {
     expect(screen.getByRole('timer').textContent).toBe('0:58');
     await click('Resume'); await advance(58_000);
     expect(screen.getByText('6 reps')).toBeTruthy();
-    await click('Start isometric squeeze'); await advance(15_000);
-    expect(screen.getByRole('timer').textContent).toBe('0:30');
-    await click('Skip rest'); expect(screen.getByRole('timer').textContent).toBe('0:05');
+    await click('Start isometric mug grips'); await advance(15_000);
+    expect(screen.getByText('Rest as needed. Start the next set when ready.')).toBeTruthy();
+    await click('Next set'); expect(screen.getByRole('timer').textContent).toBe('0:05');
     await advance(5500);
     Object.defineProperty(document, 'hidden', { configurable: true, value: true });
     act(() => { document.dispatchEvent(new Event('visibilitychange')); });
@@ -175,8 +177,9 @@ describe('reference workout plans', () => {
   it('Stop asks before ending and reviews only completed exercises when finishing early', async () => {
     render(<Train presetId="mobility" />);
     expect(screen.queryByText('Change')).toBeNull();
+    screen.getAllByRole('checkbox', { name: 'Include optional exercise' }).forEach(input => fireEvent.click(input));
     await click('Start workout'); await advance(65_000);
-    await click('Start isometric squeeze'); await advance(6000);
+    await click('Start isometric mug grips'); await advance(6000);
     await click('Stop'); expect(screen.getByRole('dialog')).toBeTruthy();
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();

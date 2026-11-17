@@ -1,8 +1,9 @@
+import { seedRoutines, seedDays } from './fixtures/journal.ts';
 import assert from 'node:assert/strict';
 import test, { beforeEach } from 'node:test';
-import { addDays, adherence, bookPage, checkIn, freeStreak, putCheckIn, rehabDone, scheduled, seedRoutines, unlogged, weeklyDrinks, weeklyWorkouts, weekStart, withRoutineDays } from '../src/routines/data.ts';
-import { dragLoads, sampleDragLoads } from '../src/routines/rehab-loads.ts';
-import { emptyFilter, seedDays } from '../src/components/home/journal-data.ts';
+import { addDays, adherence, bookPage, checkIn, freeStreak, putCheckIn, rehabDone, scheduled, unlogged, weeklyDrinks, weeklyWorkouts, weekStart, withRoutineDays } from '../src/routines/data.ts';
+import { dragLoads } from '../src/routines/rehab-loads.ts';
+import { emptyFilter } from '../src/components/home/journal-data.ts';
 import { searchJournal } from '../src/components/home/journal-search-data.ts';
 import { exercises, workoutPresets } from '../src/workouts/fixtures.ts';
 import { createSession } from '../src/workouts/session.ts';
@@ -81,15 +82,15 @@ test('weekly workouts count saved real sessions once and rehab completion follow
   assert.equal(rehabDone([saved(today, 'manual', 'pull-ups-3x5')], today), false);
 });
 
-test('rehab chart accepts only saved 20 mm drag results and retains the dummy measurements', () => {
+test('rehab chart accepts only saved 20 mm drag results without adding dummy measurements', () => {
   const drag = saved();
   const crimp = saved(today, 'tindeq', 'half-crimp', 99);
   const wrongEdge = saved(); wrongEdge.preset.prescription.edgeMm = 10;
   const output = dragLoads([drag, crimp, wrongEdge, saved(today, 'simulator', 'finger-rehab', 99)]);
-  assert.equal(output.length, 8);
+  assert.equal(output.length, 1);
   assert.equal(output.at(-1).kg, 12);
-  assert.ok(output.some(point => point.kg === 10.2));
-  assert.deepEqual(dragLoads([]), sampleDragLoads);
+  assert.equal(output.some(point => point.kg === 10.2), false);
+  assert.deepEqual(dragLoads([]), []);
 });
 
 test('routine projection retains dummy journal/workout records and never duplicates or mutates them', () => {

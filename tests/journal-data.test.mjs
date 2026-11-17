@@ -1,6 +1,7 @@
+import { seedDays, rehabLoads } from './fixtures/journal.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { asleepMinutes, dayMatches, entryRecords, getNights, groupDays, rangeLabel, rehabLoads, seedDays, stageTotals } from '../src/components/home/journal-data.ts';
+import { asleepMinutes, dayMatches, entryRecords, getNights, groupDays, rangeLabel, stageTotals } from '../src/components/home/journal-data.ts';
 
 const day = (date, entry) => ({ date, types: [], metrics: {}, visibleMetrics: [], records: [], entry });
 const entry = { title: 'Written day', body: { type: 'doc', content: [] } };

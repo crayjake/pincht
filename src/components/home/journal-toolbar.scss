@@ -2,7 +2,7 @@
   position: fixed;
   z-index: 30;
   left: 50%;
-  bottom: calc(var(--keyboard-height, 0px) + var(--journal-dock-bottom));
+  bottom: calc(var(--keyboard-height, 0px) + var(--journal-controls-gap, var(--journal-dock-bottom)));
   transform: translateX(-50%);
   width: max-content;
   max-width: calc(100% - 16px);
@@ -17,6 +17,7 @@
   scrollbar-width: none;
   &[data-visible='false'] { visibility: hidden; pointer-events: none; }
   .tiptap-toolbar-group { flex-shrink: 0; }
+  .journal-link-icon { font: 500 22px/24px var(--font-mono); }
   .tiptap-separator { background: var(--color-border); }
   .tiptap-button {
     --tt-button-default-icon-color: var(--color-text);

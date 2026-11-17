@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { localDate } from '../components/home/journal-data';
-import { addDays, checkIn, ROUTINES_KEY, seedRoutines, unlogged, type CheckIn, type RoutineData } from './data';
+import { addDays, checkIn, ROUTINES_KEY, createRoutines, unlogged, type CheckIn, type RoutineData } from './data';
+import { dataKey } from '../data/mode';
 
 export function useRoutines(trackVisit = true) {
+  const [storageKey] = useState(() => dataKey(ROUTINES_KEY));
   const [initial] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(ROUTINES_KEY) || 'null') as RoutineData || seedRoutines(); }
-    catch { return seedRoutines(); }
+    try { return JSON.parse(localStorage.getItem(storageKey) || 'null') as RoutineData || createRoutines(); }
+    catch { return createRoutines(); }
   });
   const [data, setData] = useState(initial);
   const [recentSkips, setRecentSkips] = useState<CheckIn[]>([]);
@@ -15,9 +17,9 @@ export function useRoutines(trackVisit = true) {
   const [welcome, setWelcome] = useState(away.length > 0);
   useEffect(() => {
     if (!trackVisit) return;
-    try { localStorage.setItem(ROUTINES_KEY, JSON.stringify({ ...initial, lastVisit: localDate() })); }
+    try { localStorage.setItem(storageKey, JSON.stringify({ ...initial, lastVisit: localDate() })); }
     catch { queueMicrotask(() => setError('Your changes are here, but could not be saved on this device.')); }
-  }, [initial, trackVisit]);
+  }, [initial, trackVisit, storageKey]);
   function update(next: RoutineData) {
     const value = { ...next, lastVisit: localDate() };
     // Undo rows last for this visit only; saved skips stay hidden on return.
@@ -25,9 +27,11 @@ export function useRoutines(trackVisit = true) {
       current.some(skip => skip.routineId === c.routineId && skip.date === c.date)
       || checkIn(data, c.routineId, c.date)?.status !== 'skipped'
     )));
-    try { localStorage.setItem(ROUTINES_KEY, JSON.stringify(value)); setError(''); }
-    catch { setError('Your changes are here, but could not be saved on this device.'); }
+    let saved = true;
+    try { localStorage.setItem(storageKey, JSON.stringify(value)); setError(''); }
+    catch { saved = false; setError('Your changes are here, but could not be saved on this device.'); }
     setData(value);
+    return saved;
   }
   function closeWelcome() { setWelcome(false); }
   return { data, update, recentSkips, error, away, welcome, closeWelcome };
