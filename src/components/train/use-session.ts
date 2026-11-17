@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { createSession, sessionReducer, type MeasurementSource, type SessionEvent } from '../../workouts/session';
+import { createSession, sessionReducer, type MeasurementSource, type Session, type SessionEvent } from '../../workouts/session';
 import type { Exercise, WorkoutPreset } from '../../workouts/fixtures';
 import { bluetoothError, ProgressorTransport, SimulatorTransport, type ForceTransport } from '../../workouts/transport';
 
-export function useWorkoutSession(preset: WorkoutPreset, exercise: Exercise, source: MeasurementSource) {
-  const [session, setSession] = useState(() => createSession(preset, exercise, source, Date.now()));
+export function useWorkoutSession(preset: WorkoutPreset, exercise: Exercise, source: MeasurementSource, initial?: Session) {
+  const [session, setSession] = useState(() => initial ?? createSession(preset, exercise, source, Date.now()));
   const current = useRef(session);
   const transport = useRef<ForceTransport | null>(null);
   const mounted = useRef(true);

@@ -1,8 +1,8 @@
+import { loadWorkoutPlans } from '../workouts/catalog';
 import { useState } from 'react';
 import { PrimaryNav } from '../components/app-navigation';
 import { Icon } from '../components/home/journal-icons';
 import { localDate } from '../components/home/journal-data';
-import { workoutPlans } from '../workouts/fixtures';
 import { loadSessions } from '../workouts/storage';
 import { type Routine, type RoutineData } from './data';
 import { allRoutines, comparatorLabel, routineCount, routinePlans, routineTags, saveRoutine, viewTags } from './tasks';
@@ -21,7 +21,7 @@ export function RoutinePages({ id }: { id?: string }) {
     {(['daily', 'interval', 'weekly', 'paused'] as const).map(schedule => {
       const items = routines.filter(r => schedule === 'paused' ? !r.active : r.active && r.schedule === schedule);
       return items.length > 0 && <section className="settings-section" key={schedule}><h2 className="eyebrow muted">{schedule === 'paused' ? 'Paused' : scheduleNames[schedule]}</h2><div className="settings-list">{items.map(r => <div className="settings-row" key={r.id}><a href={`#/routines/${r.id}`}><strong>{r.name}</strong><small>{r.schedule === 'weekly' ? `${comparatorLabel(r)} ${r.target} a week · ${routineCount(r, data, sessions)} so far` : r.schedule === 'interval' ? `${r.interval - 1} rest ${r.interval === 2 ? 'day' : 'days'} between` : r.planSchedule ? 'Current workout plan schedule' : r.days ? r.days.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(' · ') : 'Daily'}</small></a>{!r.active ? <button className="text-action" onClick={() => update(saveRoutine(data, { ...r, active: true }))}>Resume</button> : <a className="icon-button" aria-label={`Edit ${r.name}`} href={`#/routines/${r.id}`}><Icon name="chevron" size={16} /></a>}</div>)}</div></section>;
-    })}<a className="text-action" href="#/today">Back to To-do</a></main><PrimaryNav active="today" /></>;
+    })}<a className="text-action" href="#/todo">Back to To-do</a></main><PrimaryNav active="library" /></>;
 }
 function RoutineEditor({ routine, data, onSave, error }: { routine: Routine; data: RoutineData; onSave: (data: RoutineData) => void; error: string }) {
   const [value, setValue] = useState<Routine>(() => structuredClone(routine));
@@ -32,7 +32,7 @@ function RoutineEditor({ routine, data, onSave, error }: { routine: Routine; dat
     try { if (specific && ['training', 'rehab'].includes(value.kind) && !routinePlans(value).length) throw new Error('Choose at least one workout.'); onSave(saveRoutine(data, { ...value, active, workoutPlanIds: specific ? routinePlans(value) : [] })); }
     catch (cause) { setValidation((cause as Error).message); }
   }
-  return <main className="today-page configuration-page"><header className="editor-heading"><a className="text-action" href="#/routines">Cancel</a><h1>{routine.name ? 'Edit routine' : 'New routine'}</h1><button className="save-action" onClick={() => save()}>Save</button></header>
+  return <><main className="today-page configuration-page"><header className="editor-heading"><a className="text-action" href="#/routines">Cancel</a><h1>{routine.name ? 'Edit routine' : 'New routine'}</h1><button className="save-action" onClick={() => save()}>Save</button></header>
     {(validation || error) && <p role="alert">{validation || error}</p>}
     <label className="settings-field"><span className="eyebrow muted">Name</span><input aria-label="Routine name" value={value.name} onChange={e => patch({ name: e.target.value })} /></label>
     {!routine.name && <label className="settings-field"><span className="eyebrow muted">Tracks</span><select value={value.kind} onChange={e => patch({ kind: e.target.value as Routine['kind'] })}><option value="training">Training</option><option value="rehab">Rehab</option><option value="reading">Reading</option><option value="alcohol">Alcohol</option></select></label>}
@@ -43,8 +43,8 @@ function RoutineEditor({ routine, data, onSave, error }: { routine: Routine; dat
       {value.schedule !== 'weekly' && <label className="settings-field"><span className="eyebrow muted">Start date</span><input type="date" aria-label="Routine start date" value={value.start} onChange={e => patch({ start: e.target.value })} /></label>}
     </section>
     {value.schedule === 'weekly' && <section className="settings-section"><h2 className="eyebrow muted">Target</h2><div className="settings-card"><div className="settings-segment" role="group" aria-label="Comparator">{(['at-least', 'exactly', 'at-most'] as const).map(comparator => <button key={comparator} aria-pressed={(value.comparator ?? 'at-least') === comparator} onClick={() => patch({ comparator })}>{comparatorLabel({ ...value, comparator })}</button>)}</div><label className="settings-number">{value.kind === 'alcohol' ? 'Drinks per week' : 'Sessions per week'}<span className="target-stepper"><button type="button" aria-label="Fewer" disabled={value.target <= 1} onClick={() => patch({ target: value.target - 1 })}>−</button><input type="number" min="1" max="100" aria-label="Weekly target" value={value.target} onChange={e => patch({ target: Number(e.target.value) })} /><button type="button" aria-label="More" disabled={value.target >= 100} onClick={() => patch({ target: value.target + 1 })}>+</button></span></label></div></section>}
-    {['training', 'rehab'].includes(value.kind) && <section className="settings-section"><h2 className="eyebrow muted">What counts</h2><div className="settings-chips"><button aria-pressed={!specific} onClick={() => { setSpecific(false); patch({ workoutPlanIds: [] }); }}>Any workout</button><button aria-pressed={specific} onClick={() => setSpecific(true)}>Specific workouts</button></div>{specific && <div className="settings-chips">{workoutPlans.map(plan => <button key={plan.id} data-category={value.kind} aria-pressed={routinePlans(value).includes(plan.id)} onClick={() => patch({ workoutPlanIds: routinePlans(value).includes(plan.id) ? routinePlans(value).filter(id => id !== plan.id) : [...routinePlans(value), plan.id] })}>{plan.name}</button>)}</div>}</section>}
+    {['training', 'rehab'].includes(value.kind) && <section className="settings-section"><h2 className="eyebrow muted">What counts</h2><div className="settings-chips"><button aria-pressed={!specific} onClick={() => { setSpecific(false); patch({ workoutPlanIds: [] }); }}>Any workout</button><button aria-pressed={specific} onClick={() => setSpecific(true)}>Specific workouts</button></div>{specific && <div className="settings-chips">{loadWorkoutPlans().map(plan => <button key={plan.id} data-category={value.kind} aria-pressed={routinePlans(value).includes(plan.id)} onClick={() => patch({ workoutPlanIds: routinePlans(value).includes(plan.id) ? routinePlans(value).filter(id => id !== plan.id) : [...routinePlans(value), plan.id] })}>{plan.name}</button>)}</div>}</section>}
     <section className="settings-section"><h2 className="eyebrow muted">Shows in views tagged</h2><div className="settings-chips">{viewTags.map(tag => <button key={tag} data-category={tag === 'reading' ? 'habit' : tag} aria-pressed={routineTags(value).includes(tag)} onClick={() => patch({ tags: routineTags(value).includes(tag) ? routineTags(value).filter(t => t !== tag) : [...routineTags(value), tag] })}>{tag}</button>)}</div></section>
     <button className="text-action full-width" onClick={() => save(!value.active)}>{value.active ? 'Pause routine' : 'Resume routine'}</button>
-  </main>;
+  </main><PrimaryNav active="library" /></>;
 }

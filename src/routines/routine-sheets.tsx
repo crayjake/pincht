@@ -35,7 +35,7 @@ export function ReadingSheet({ data, routine, date: initialDate, onChange, onClo
   </Sheet>;
 }
 
-function BookSelector({ data, onChange, onSelect, onClose }: { data: RoutineData; onChange: (data: RoutineData) => void; onSelect: (id: string, page: number) => void; onClose: () => void }) {
+export function BookSelector({ data, onChange, onSelect, onClose }: { data: RoutineData; onChange: (data: RoutineData) => void; onSelect: (id: string, page: number) => void; onClose: () => void }) {
   const [title, setTitle] = useState(''), [author, setAuthor] = useState(''), [pages, setPages] = useState(''), [initialPage, setInitialPage] = useState('0');
   return <Sheet title="Your books" development onClose={onClose}>
     <div className="book-list">{data.books.map(book => <button className="book-list-row" key={book.id} onClick={() => { onChange({ ...data, currentBookId: book.id }); onSelect(book.id, bookPage(data, book.id)); }}><Icon name="book" /><span><strong>{book.title}</strong><small>{book.author} · {bookPage(data, book.id)} / {book.pages}</small></span>{data.currentBookId === book.id && <Icon name="check" />}</button>)}</div>

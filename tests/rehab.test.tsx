@@ -28,13 +28,13 @@ it('uses existing workout links with empty history and no rehab setup or care fl
   expect(screen.queryByText('Pulley care & symptoms')).toBeNull();
   expect(screen.queryByRole('region', { name: 'Finger rehab' })).toBeNull();
   expect(screen.queryByRole('region', { name: 'Sleep' })).toBeNull();
-  expect(JSON.parse(localStorage.getItem(ROUTINES_KEY)!).books).toEqual([]);
-  expect(JSON.parse(localStorage.getItem(ROUTINES_KEY)!).checkIns).toEqual([]);
+  expect(localStorage.getItem(ROUTINES_KEY)).toBeNull();
+  expect(localStorage.getItem(ROUTINES_KEY)).toBeNull();
   expect(JSON.parse(localStorage.getItem(JOURNAL_KEY)!)).toEqual([]);
   expect(localStorage.getItem(SESSION_KEY)).toBeNull();
   await click('Complete Read for today');
   expect(screen.getByRole('heading', { name: 'Your books' })).toBeTruthy();
-  expect(JSON.parse(localStorage.getItem(ROUTINES_KEY)!).checkIns).toEqual([]);
+  expect(localStorage.getItem(ROUTINES_KEY)).toBeNull();
   change('Title', 'My actual book');
   change('Total pages', '200');
   await click('Add and select book');

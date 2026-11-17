@@ -40,7 +40,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('Today and journal flows', () => {
-  it.each(['card', 'journal', 'compact'] as const)('shows the %s assigned workouts inline without navigating or a Routines dropdown', async variant => {
+  it.each(['card', 'todo', 'compact'] as const)('shows the %s assigned workouts inline without navigating or a Routines dropdown', async variant => {
     render(<DueToday data={seedRoutines('2026-11-16')} recentSkips={[]} sessions={[]} onChange={vi.fn()} onOpen={vi.fn()} variant={variant} />);
     const arrow = screen.getByRole('button', { name: 'Required workout' });
     expect(arrow.getAttribute('aria-expanded')).toBe('false');
@@ -60,8 +60,8 @@ describe('Today and journal flows', () => {
     expect(screen.queryByRole('region', { name: 'Required workout' })).toBeNull();
   });
 
-  it('starts on To-do with three task sections, and shares updates with the separate journal', async () => {
-    window.history.replaceState(null, '', '/');
+  it('opens To-do with three task sections, and shares updates with the separate journal', async () => {
+    window.history.replaceState(null, '', '/#/todo');
     render(<App />);
     expect(screen.getByRole('main', { name: 'To-do' })).toBeTruthy();
     for (const name of ['Today', 'This week', 'Coming up']) expect(screen.getByRole('region', { name })).toBeTruthy();
@@ -72,20 +72,19 @@ describe('Today and journal flows', () => {
     await navigate();
     const today = screen.getByLabelText('Journal title').closest('article')!;
     expect(within(today).getByRole('region', { name: 'Today’s tasks' })).toBeTruthy();
-    expect(within(today).getByRole('button', { name: 'read 20 min' })).toBeTruthy();
+    expect(within(today).getByRole('link', { name: 'read 20 min' })).toBeTruthy();
     expect(within(today).queryByText('read · unlogged')).toBeNull();
     expect(screen.queryByRole('region', { name: 'Sleep' })).toBeNull();
     await change('Journal title', 'Today’s notes');
-    const alcohol = within(within(today).getByText('alcohol-free day · unlogged').closest('div')!);
-    await click('Skip', alcohol);
-    expect(alcohol.getByRole('button', { name: 'Undo skipping Alcohol-free day' })).toBeTruthy();
+    await click('Complete Alcohol-free day for today', within(today));
+    expect(within(today).getByRole('button', { name: 'Clear Alcohol-free day for today' })).toBeTruthy();
     await act(async () => {
       window.history.replaceState(null, '', '/#/today');
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
     await navigate();
     expect((screen.getByLabelText('Journal title') as HTMLInputElement).value).toBe('Today’s notes');
-    expect(screen.getByRole('button', { name: 'Undo skipping Alcohol-free day' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Clear Alcohol-free day for today' })).toBeTruthy();
     expect(saved().checkIns.filter(c => c.routineId === 'read' && c.date === '2026-11-16')).toHaveLength(1);
   });
 
@@ -111,7 +110,8 @@ describe('Today and journal flows', () => {
     expect(screen.getByRole('link', { name: 'Climbing notes' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Rest notes' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Remembering a climb' })).toBeNull();
-    expect(screen.queryByPlaceholderText('Journal title')).toBeNull();
+    expect(screen.getByPlaceholderText('Journal title')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Today’s tasks' })).queryByText(/read|alcohol/i)).toBeNull();
     const written = within(screen.getByRole('link', { name: 'Climbing notes' }).closest('article')!);
     expect(written.getByRole('link', { name: /sleep/ })).toBeTruthy();
     await click(/^\d+ records$/, written);
@@ -132,7 +132,7 @@ describe('Today and journal flows', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(within(scope.getByRole('region', { name: 'Day records' })).getByRole('link', { name: 'Sidepull Season' })).toBeTruthy();
     expect(window.location.hash).toBe('#/journal');
-    expect(screen.getByRole('navigation')).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeTruthy();
     await click(/^\d+ records$/, scope);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(scope.queryByRole('region', { name: 'Day records' })).toBeNull();
@@ -204,7 +204,7 @@ describe('Today and journal flows', () => {
     expect(returned.getByText('Read · Thu 12')).toBeTruthy();
   });
 
-  it('links summary pills to existing areas and opens habit check-ins for the entry’s date', async () => {
+  it('links summary pills to their Library things', () => {
     const date = '2026-11-15';
     const data = seedRoutines('2026-11-16');
     data.checkIns.push({ routineId: 'read', date, status: 'done', minutes: 35, bookId: 'piranesi', page: 145 });
@@ -212,24 +212,11 @@ describe('Today and journal flows', () => {
     const { container } = render(<Home entryDate={date} />);
     const summary = within(container.querySelector('.entry-summary')! as HTMLElement);
     for (const [label, href] of [
-      ['climb', '#/climbing'], ['rehab', '#/train/pulley-rehab'], ['training', '#/train'],
-      ['sleep 7h 12m', '#/metrics'], ['72.4 kg', '#/metrics'],
-    ]) {
-      expect(summary.getByRole('link', { name: label }).getAttribute('href')).toBe(href);
-    }
-    expect(summary.getByText('goal').closest('a, button')).toBeNull();
-
-    await click('read 35 min', summary);
-    expect(screen.getByRole('heading', { name: 'Log reading' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Yesterday · Sun 15' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByRole('button', { name: '35 min' }).getAttribute('aria-pressed')).toBe('true');
-    expect((screen.getByLabelText('Now on page') as HTMLInputElement).value).toBe('145');
-    await click('Close sheet');
-
-    await click('alcohol-free', summary);
-    const alcohol = within(screen.getByRole('dialog', { name: 'Alcohol-free day' }));
-    expect(alcohol.getByText('Sunday 15 November')).toBeTruthy();
-    expect((alcohol.getByLabelText('Drinks today') as HTMLInputElement).value).toBe('0');
+      ['climb', '#/library/climbs'], ['rehab', '#/library/workouts'], ['training', '#/library/workouts'],
+      ['sleep 7h 12m', '#/library/metrics/sleep'], ['72.4 kg', '#/library/metrics/weight'],
+      ['goal', '#/library/goals'], ['read 35 min', '#/library/books/book-piranesi'],
+      ['alcohol-free', '#/library/routines/alcohol'],
+    ]) expect(summary.getByRole('link', { name: label }).getAttribute('href')).toBe(href);
   });
 
   it('combines logged and referenced records without duplicates or adding referenced activity to the summary', async () => {
@@ -277,31 +264,24 @@ describe('Today and journal flows', () => {
     expect(journal().find(day => day.date === '2026-11-16')?.entry).toBeUndefined();
   });
 
-  it('keeps today’s composer stable when focusing and toggling task dropdowns', async () => {
+  it('keeps today’s composer stable when focusing and completing tasks', async () => {
     render(<Home />);
     const title = screen.getByPlaceholderText('Journal title');
     const today = title.closest('article')!;
     const tasks = within(within(today).getByRole('region', { name: 'Today’s tasks' }));
-    const dropdown = tasks.getByRole('button', { name: /^Due today/ });
+    const complete = tasks.getByRole('button', { name: 'Complete Read for today' });
     const before = journal();
 
     expect(today.classList.contains('composer-open')).toBe(false);
-    await act(async () => { dropdown.focus(); });
-    await click(/^Due today/, tasks);
-    expect(dropdown.getAttribute('aria-expanded')).toBe('false');
+    await act(async () => { complete.focus(); });
+    await click('Complete Read for today', tasks);
+    expect(complete.getAttribute('aria-pressed')).toBe('true');
     expect(today.classList.contains('composer-open')).toBe(false);
-    await click(/^Due today/, tasks);
-    expect(dropdown.getAttribute('aria-expanded')).toBe('true');
-    const workout = tasks.getByRole('button', { name: 'Required workout' });
-    await act(async () => { workout.focus(); });
-    await click('Required workout', tasks);
-    expect(today.classList.contains('composer-open')).toBe(false);
-
     const body = within(today).getByRole('textbox', { name: /Journal body/ });
     await act(async () => { body.focus(); });
     expect(today.classList.contains('composer-open')).toBe(true);
-    await act(async () => { dropdown.focus(); });
-    await click(/^Due today/, tasks);
+    await act(async () => { complete.focus(); });
+    await click('Clear Read for today', tasks);
     expect(today.classList.contains('composer-open')).toBe(true);
     expect(screen.getByPlaceholderText('Journal title')).toBe(title);
     expect(window.location.hash).toBe('#/journal');
@@ -353,7 +333,7 @@ describe('Today and journal flows', () => {
   });
   it('quick completion saves usual reading time without invented pages and keeps unfinished rehab visible', async () => {
     render(<Home screen="today" />);
-    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link').map(link => link.textContent)).toEqual(['Today', 'Journal', 'Climbing', 'Train']);
+    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link').map(link => link.getAttribute('aria-label'))).toEqual(['Journal', 'Do', 'Library']);
     expect(screen.queryByRole('img', { name: '0 of 3 workouts' })).toBeNull();
     expect(within(screen.getByRole('region', { name: 'This week' })).getByRole('link', { name: /^Train.*0 of 3 this week/ }).getAttribute('href')).toBe('#/train/pull-ups-3x5');
     await click('Complete Read for today');
@@ -489,20 +469,20 @@ describe('Today and journal flows', () => {
   });
 
   it('keeps additional destinations visibly in development', () => {
-    const { rerender } = render(<LibraryPage kind="climbs" />);
+    const { rerender } = render(<LibraryPage category="climbs" onDataMode={vi.fn()} />);
     expect(screen.getByText('Awaiting UI/UX pass')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Climbing' }).getAttribute('aria-current')).toBe('page');
-    rerender(<LibraryPage kind="metrics" />);
+    expect(screen.getByRole('link', { name: 'Library' }).getAttribute('aria-current')).toBe('page');
+    rerender(<LibraryPage category="metrics" onDataMode={vi.fn()} />);
     expect(screen.getByText('In development')).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Metrics' })).toBeNull();
-    expect(screen.getByRole('navigation', { name: 'Primary' }).querySelector('[aria-current]')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Library' }).getAttribute('aria-current')).toBe('page');
   });
 
   it('does not consume the welcome-back visit when opening an additional destination first', () => {
     const data = seedRoutines('2026-11-11');
     data.checkIns = data.checkIns.filter(c => c.date < '2026-11-11');
     localStorage.setItem(ROUTINES_KEY, JSON.stringify(data));
-    const { unmount } = render(<LibraryPage kind="metrics" />);
+    const { unmount } = render(<LibraryPage category="metrics" onDataMode={vi.fn()} />);
     expect(saved().lastVisit).toBe('2026-11-11');
     unmount();
     render(<Home />);

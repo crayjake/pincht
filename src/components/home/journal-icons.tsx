@@ -1,4 +1,4 @@
-export function Icon({ name, size = 20 }: { name: 'search' | 'filter' | 'plus' | 'close' | 'note' | 'chevron' | 'more' | 'today' | 'train' | 'climbs' | 'metrics' | 'back' | 'check' | 'minus' | 'book'; size?: number }) {
+export function Icon({ name, size = 20 }: { name: 'search' | 'filter' | 'plus' | 'close' | 'note' | 'chevron' | 'more' | 'today' | 'train' | 'climbs' | 'metrics' | 'back' | 'check' | 'minus' | 'book' | 'play' | 'library' | 'bolt' | 'sleep' | 'drink' | 'weight' | 'goal'; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={name === 'plus' ? 2 : 1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {name === 'search' && <><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></>}
     {name === 'filter' && <><path d="M4 7h9M19 7h1M4 17h1M11 17h9" /><circle cx="16" cy="7" r="2.2" /><circle cx="8" cy="17" r="2.2" /></>}
@@ -14,6 +14,13 @@ export function Icon({ name, size = 20 }: { name: 'search' | 'filter' | 'plus' |
     {name === 'back' && <path d="m14 6-6 6 6 6" />}
     {name === 'check' && <path d="m5 12 4 4L19 6" />}
     {name === 'minus' && <path d="M5 12h14" />}
-    {name === 'book' && <><path d="M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-2H4zm16 0h-4a3 3 0 0 0-3 3v14a4 4 0 0 1 4-2h3z" /></>}
+    {name === 'play' && <path d="m9 5 11 7-11 7z" />}
+    {name === 'library' && <>{[[4,4],[13,4],[4,13],[13,13]].map(([x,y]) => <rect key={`${x}-${y}`} x={x} y={y} width="7" height="7" rx="2" />)}</>}
+    {name === 'book' && <path d="M12 6c-2-1.5-5-2-8-1.5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-13C17 4 14 4.5 12 6zM12 6v13" />}
+    {name === 'bolt' && <path d="M13 3 5.5 13.5H11L10 21l7.5-10.5H12z" />}
+    {name === 'sleep' && <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" />}
+    {name === 'drink' && <path d="M7 4h10l-1 8a4 4 0 0 1-8 0zM12 16v4M9 20h6" />}
+    {name === 'weight' && <><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8 10a4 4 0 0 1 8 0M12 10l2-2" /></>}
+    {name === 'goal' && <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="4" /><path d="m12 12 8-8" /></>}
   </svg>;
 }

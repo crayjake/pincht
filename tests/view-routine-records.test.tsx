@@ -72,9 +72,9 @@ it('persists view filters, widget choices and order, and renders that configurat
   await click('Configure Widgets'); await click('Finger rehab'); await click('Climbing days');
   await click('Sleep', within(screen.getByRole('button', { name: 'Configure Widgets' }).closest('.view-block') as HTMLElement));
   await click('To-do shown'); await click('Configure Journal'); await click('Move Journal up'); await click('Move Journal up');
-  await click('Done');
-  const view = loadViews()[0];
-  expect(view).toMatchObject({ name: 'Rest and sleep', tags: ['sleep'], tab: true });
+  await click('Make default'); await click('Done');
+  const view = loadViews().find(view => view.id === 'climbing')!;
+  expect(view).toMatchObject({ name: 'Rest and sleep', tags: ['sleep'], isDefault: true });
   expect(view.blocks.map(b => b.type)).toEqual(['journal', 'widgets', 'todo']);
   expect(view.blocks.find(b => b.type === 'widgets')?.widgets).toEqual(['sleep']);
   unmount();
@@ -86,8 +86,8 @@ it('persists view filters, widget choices and order, and renders that configurat
   expect(container.querySelector('.block-journal')!.compareDocumentPosition(screen.getByRole('region', { name: 'Sleep' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   closeHome();
   localStorage.setItem(DATA_MODE_KEY, 'demo');
-  expect(loadViews()[0].name).toBe('Climbing');
-  expect(JSON.parse(localStorage.getItem(VIEWS_KEY)!)[0].name).toBe('Rest and sleep');
+  expect(loadViews()[0].name).toBe('All');
+  expect(JSON.parse(localStorage.getItem(VIEWS_KEY)!).find((view: { id: string }) => view.id === 'climbing').name).toBe('Rest and sleep');
 });
 
 it('creates a fresh day climb log from a mention while keeping workout mentions as references, and persists editable goes and notes', async () => {

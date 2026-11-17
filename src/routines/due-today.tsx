@@ -1,10 +1,11 @@
+import { loadWorkoutPlans } from '../workouts/catalog';
 import { useId, useState } from 'react';
 import { useRehab } from '../rehab/use-rehab';
 import { rehabTasks } from '../rehab/data';
 import { localDate, shortDate } from '../components/home/journal-data';
 import { Icon } from '../components/home/journal-icons';
 import type { Session } from '../workouts/session';
-import { planPresets, prescriptionLabel, workoutPlans } from '../workouts/fixtures';
+import { planPresets, prescriptionLabel } from '../workouts/fixtures';
 import { addDays, bookPage, checkIn, freeStreak, putCheckIn, weeklyDrinks, type CheckIn, type Routine, type RoutineData, type RoutineKind } from './data';
 import { allRoutines, comparatorLabel, routineCount, routineDone, routineDue, routineLink, routinePlans, routineTags, type ViewTag } from './tasks';
 
@@ -37,7 +38,7 @@ export function DueToday({ data, recentSkips, sessions, onChange, onOpen, kinds,
   function row(r: Routine, isWeekly = false) {
     const workout = r.kind === 'training' || r.kind === 'rehab';
     const count = isWeekly ? routineCount(r, data, sessions, today) : 0;
-    const plans = routinePlans(r).flatMap(id => workoutPlans.filter(plan => plan.id === id));
+    const plans = routinePlans(r).flatMap(id => loadWorkoutPlans().filter(plan => plan.id === id));
     const open = workouts.includes(r.id);
     const detail = r.planSchedule ? rehabItems.find(item => item.id === r.id)?.detail : undefined;
     const meta = detail ?? (isWeekly ? `${count} of ${r.target} this week · ${comparatorLabel(r)} ${r.target}` : r.kind === 'reading' ? `daily · ${book ? `${book.title} p.${bookPage(data, book.id)}` : 'Add your book'}` : r.kind === 'alcohol' ? `day ${freeStreak(data, r, today)} · ${weeklyDrinks(data, today)} of ${r.target} drinks this week` : done(r) ? 'Logged today' : 'Due today');
@@ -60,13 +61,36 @@ export function DueToday({ data, recentSkips, sessions, onChange, onOpen, kinds,
     {weekly.length > 0 && <section aria-label="This week"><h2 className="eyebrow muted">This week · resets Monday</h2><div className="due-today">{weekly.map(r => row(r, true))}</div></section>}
     {upcoming.length > 0 && <section aria-label="Coming up"><h2 className="eyebrow muted">Coming up</h2><div className="settings-list">{upcoming.map(({ routine, date }) => <div className="settings-row" key={routine.id}><a href={`#/routines/${routine.id}`}><strong>{routine.name}</strong></a><small>{shortDate(date, { weekday: 'short', day: 'numeric' })}</small></div>)}</div></section>}
   </div>;
-  const title = variant === 'journal' ? 'Today’s tasks' : 'Due today';
-  return <section className={`due-today due-${variant}`} aria-label={title}><button className="due-heading" aria-expanded={expanded} aria-controls={itemsId} onClick={() => setExpanded(!expanded)}><strong>{variant === 'journal' ? 'Due today' : title}</strong><span>{completed} of {daily.length}</span><Icon name="chevron" size={16} /></button>{expanded && <div id={itemsId}>{variant === 'journal' ? <><HabitRows data={data} date={today} recentSkips={recentSkips} onOpen={onOpen} onChange={onChange} />{daily.filter(r => r.kind === 'rehab' || r.kind === 'training').map(r => row(r))}</> : daily.map(r => row(r))}{weekly.map(r => row(r, true))}{variant === 'card' && earlier}</div>}</section>;
+  if (variant === 'journal') {
+    const items = [...daily, ...weekly];
+    const isComplete = (r: Routine) => {
+      if (r.schedule !== 'weekly') return done(r);
+      const count = routineCount(r, data, sessions, today);
+      return r.comparator === 'at-most' ? count <= r.target : r.comparator === 'exactly' ? count === r.target : count >= r.target;
+    };
+    return <section className="due-today due-journal" aria-label="Today’s tasks">
+      <a className="journal-due-heading" href="#/todo" aria-label="Open To-do"><span>Due today · {items.filter(isComplete).length} of {items.length}</span><Icon name="back" size={16} /></a>
+      {items.map(r => {
+        const workout = r.kind === 'training' || r.kind === 'rehab';
+        const progress = Math.min(1, routineCount(r, data, sessions, today) / r.target);
+        const skipped = checkIn(data, r.id, today)?.status === 'skipped';
+        const detail = r.planSchedule ? rehabItems.find(item => item.id === r.id)?.detail : undefined;
+        const meta = skipped ? 'Undo skip' : r.schedule === 'weekly' ? `${routineCount(r, data, sessions, today)} of ${r.target} this week` : r.kind === 'reading' ? book ? `${book.title} p.${bookPage(data, book.id)}` : 'Add your book' : r.kind === 'alcohol' ? `day ${freeStreak(data, r, today)}` : detail?.split(' · ')[0]?.replace(/ sessions today$/, '') ?? 'Due today';
+        return <div className="journal-due-row" key={r.id}>
+          {workout ? <a className="journal-due-lead" data-category={r.kind} href={routineLink(r)} aria-label={`Open ${r.name}`}>{r.schedule === 'weekly' ? <svg width="24" height="24" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="13" fill="none" stroke="var(--color-track)" strokeWidth="5" /><circle cx="18" cy="18" r="13" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${progress * 81.7} 81.7`} transform="rotate(-90 18 18)" /></svg> : <Icon name={isComplete(r) ? 'check' : 'train'} size={18} />}</a> : <button className="journal-due-lead" data-category="habit" onClick={() => quick(r)} aria-label={skipped ? `Undo skipping ${r.name}` : `${done(r) ? 'Clear' : 'Complete'} ${r.name} for today`} aria-pressed={done(r)}><span className="journal-due-ring">{done(r) && <Icon name="check" size={14} />}</span></button>}
+          {workout ? <a className="journal-due-body" href={routineLink(r)}><strong>{r.name}</strong><small>{meta}</small></a> : <button className="journal-due-body" onClick={() => skipped ? quick(r) : onOpen(r, today)}><strong>{r.name}</strong><small>{meta}</small></button>}
+        </div>;
+      })}
+      {!items.length && <p className="empty-records">Nothing due today.</p>}
+    </section>;
+  }
+  const title = 'Due today';
+  return <section className={`due-today due-${variant}`} aria-label={title}><div className="due-heading-row"><button className="due-heading" aria-expanded={expanded} aria-controls={itemsId} onClick={() => setExpanded(!expanded)}><strong>Due today</strong><span>{completed} of {daily.length}</span><Icon name="chevron" size={16} /></button><a className="icon-button todo-link" href="#/todo" aria-label="Open To-do"><Icon name="back" size={16} /></a></div>{expanded && <div id={itemsId}>{daily.map(r => row(r))}{weekly.map(r => row(r, true))}{variant === 'card' && earlier}</div>}</section>;
 }
 
-export function HabitRows({ data, date, recentSkips, onOpen, onChange }: { data: RoutineData; date: string; recentSkips: CheckIn[]; onOpen: (routine: Routine, date: string) => void; onChange: (data: RoutineData) => void }) {
+export function HabitRows({ data, date, recentSkips, onOpen, onChange, routineIds }: { routineIds?: string[]; data: RoutineData; date: string; recentSkips: CheckIn[]; onOpen: (routine: Routine, date: string) => void; onChange: (data: RoutineData) => void }) {
   if (date > localDate()) return null;
-  return <>{data.routines.filter(r => ['reading', 'alcohol'].includes(r.kind) && routineDue(r, data, [], date)).map(routine => {
+  return <>{data.routines.filter(r => (!routineIds || routineIds.includes(r.id)) && ['reading', 'alcohol'].includes(r.kind) && routineDue(r, data, [], date)).map(routine => {
     const value = checkIn(data, routine.id, date);
     const skipped = value?.status === 'skipped' && recentSkips.some(skip => skip.routineId === routine.id && skip.date === date);
     if (value && !skipped) return null;

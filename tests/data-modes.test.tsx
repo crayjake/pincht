@@ -23,7 +23,9 @@ async function navigate(path: string) {
   });
 }
 async function switchMode(mode: 'real' | 'demo') {
+  await navigate('library');
   await act(async () => { fireEvent.change(screen.getByLabelText('Stored data mode'), { target: { value: mode } }); });
+  await navigate('todo');
 }
 async function write(title: string) {
   await act(async () => { fireEvent.change(screen.getByLabelText('Journal title'), { target: { value: title } }); });

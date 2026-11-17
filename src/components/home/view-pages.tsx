@@ -8,9 +8,9 @@ const widgetNames: Record<WidgetId, string> = { rehab: 'Finger rehab', climbing:
 const blockNames = { widgets: 'Widgets', todo: 'To-do', journal: 'Journal', chart: 'Chart' };
 export function ViewPages({ id }: { id?: string }) {
   const [views] = useState(loadViews);
-  const view = id === 'new' ? { ...structuredClone(climbingView), id: crypto.randomUUID(), name: '', tab: false } : views.find(v => v.id === id);
+  const view = id === 'new' ? { ...structuredClone(climbingView), id: crypto.randomUUID(), name: '', isDefault: false } : views.find(v => v.id === id);
   if (id) return view ? <ViewEditor key={id} view={view} /> : <main className="today-page"><a href="#/views">Back to views</a><p>View not found.</p></main>;
-  return <><main className="today-page configuration-page"><header className="screen-heading"><div><h1>Views</h1><p>Your data, filtered and arranged</p></div><a className="text-action" href="#/views/edit/new">Add view</a></header><div className="settings-list">{views.map(view => <div className="settings-row" key={view.id}><a href={`#/view/${view.id}`}><strong>{view.name}</strong><small>{view.tags.join(' · ') || 'All entries and routines'}</small></a><a className="text-action" href={`#/views/edit/${view.id}`}>Edit</a></div>)}</div></main><PrimaryNav /></>;
+  return <><main className="today-page configuration-page"><header className="screen-heading"><div><h1>Views</h1><p>Your data, filtered and arranged</p></div><a className="text-action" href="#/views/edit/new">Add view</a></header><div className="settings-list">{views.map(view => <div className="settings-row" key={view.id}><a href={`#/view/${view.id}`}><strong>{view.name}</strong><small>{view.tags.join(' · ') || 'All entries and routines'}</small></a><a className="text-action" href={`#/views/edit/${view.id}`}>Edit</a></div>)}</div></main><PrimaryNav active="library" /></>;
 }
 function ViewEditor({ view }: { view: JournalView }) {
   const [value, setValue] = useState(() => structuredClone(view));
@@ -26,7 +26,7 @@ function ViewEditor({ view }: { view: JournalView }) {
   }
   function drop(event: DragEvent, to: number) { event.preventDefault(); if (dragged !== null) reorder(dragged, to); setDragged(null); }
   const presets: Record<string, ViewTag[]> = { Climbing: ['climb', 'rehab', 'training'], Reading: ['reading'], Habits: ['habit'], Sleep: ['sleep'], Custom: [] };
-  return <main className="today-page configuration-page"><header className="editor-heading"><a className="text-action" href={view.name ? `#/view/${view.id}` : '#/views'}>Cancel</a><h1>{view.name ? 'Edit view' : 'New view'}</h1><button className="save-action" onClick={() => { try { saveView(value); location.hash = `/view/${value.id}`; } catch (cause) { setError((cause as Error).message); } }}>Done</button></header>
+  return <><main className="today-page configuration-page"><header className="editor-heading"><a className="text-action" href={view.name ? `#/view/${view.id}` : '#/views'}>Cancel</a><h1>{view.name ? 'Edit view' : 'New view'}</h1><button className="save-action" onClick={() => { try { saveView(value); location.hash = `/view/${value.id}`; } catch (cause) { setError((cause as Error).message); } }}>Done</button></header>
     {error && <p role="alert">{error}</p>}
     <label className="settings-field"><span className="eyebrow muted">Name</span><input aria-label="View name" value={value.name} onChange={e => patch({ name: e.target.value })} /></label>
     <section className="settings-section"><h2 className="eyebrow muted">Start from a premade filter</h2><div className="settings-chips">{Object.entries(presets).map(([name, tags]) => <button key={name} aria-pressed={preset === name} onClick={() => { patch({ tags }); setPreset(name); }}>{name}</button>)}</div></section>
@@ -37,6 +37,6 @@ function ViewEditor({ view }: { view: JournalView }) {
       {editingBlock === block.id && <div className="block-actions"><button disabled={!index} onClick={() => reorder(index, index - 1)} aria-label={`Move ${blockNames[block.type]} up`}>↑</button><button disabled={index === value.blocks.length - 1} onClick={() => reorder(index, index + 1)} aria-label={`Move ${blockNames[block.type]} down`}>↓</button><button onClick={() => patch({ blocks: value.blocks.filter(b => b.id !== block.id) })}>Remove</button></div>}</div>)}</div>
       <button className="add-block" aria-expanded={adding} onClick={() => setAdding(!adding)}>Add block · widget, to-do, journal, chart</button>{adding && <div className="settings-chips">{(['widgets', 'todo', 'journal', 'chart'] as const).map(type => <button key={type} disabled={value.blocks.some(block => block.type === type)} onClick={() => { patch({ blocks: [...value.blocks, { id: crypto.randomUUID(), type, enabled: true, ...(type === 'widgets' ? { widgets: ['rehab'] as WidgetId[] } : type === 'chart' ? { chart: 'rehab' as const } : {}) }] }); setAdding(false); }}>{blockNames[type]}</button>)}</div>}
     </section>
-    <section className="settings-section"><h2 className="eyebrow muted">Placement</h2><div className="settings-list"><div className="settings-row"><div><strong>Show in tab bar</strong><small>Slot 3 of 4 · other views open from Views</small></div><button className="settings-switch" aria-label="Show in tab bar" aria-pressed={value.tab} onClick={() => patch({ tab: !value.tab })}><i /></button></div></div></section>
-  </main>;
+    <section className="settings-section"><h2 className="eyebrow muted">Placement</h2><div className="settings-list"><div className="settings-row"><div><strong>Make default</strong><small>Open this view when entering Journal</small></div><button className="settings-switch" aria-label="Make default" aria-pressed={!!value.isDefault} onClick={() => patch({ isDefault: !value.isDefault })}><i /></button></div></div></section>
+  </main><PrimaryNav active="library" /></>;
 }

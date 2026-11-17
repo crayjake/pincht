@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { clearWorkoutDraft, loadWorkoutDraft, restoredSession, saveWorkoutDraft } from '../../workouts/draft';
+import { loadWorkoutPlans } from '../../workouts/catalog';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { BleClient } from '@capacitor-community/bluetooth-le';
-import { exercises, planPresets, rehabPlanNote, resolvePreset, prescriptionLabel, workSeconds, workoutMinutes, workoutPlans, workoutPresets, type HoldPrescription, type PacedPrescription, type TimedPrescription, type WorkoutPlan, type WorkoutPreset } from '../../workouts/fixtures';
+import { exercises, planPresets, rehabPlanNote, resolvePreset, prescriptionLabel, workSeconds, workoutMinutes, workoutPresets, type HoldPrescription, type PacedPrescription, type TimedPrescription, type WorkoutPlan, type WorkoutPreset } from '../../workouts/fixtures';
 import { remainingSeconds, type MeasurementSource, type Session, type SetResult, type TracePoint } from '../../workouts/session';
 import { loadSessions, saveSession } from '../../workouts/storage';
 import { useWorkoutSession } from './use-session';
@@ -87,7 +89,7 @@ function Review({ session, onDone, saved = false }: { session: Session; onDone: 
     {error && <p role="alert" className="train-notice">{error}</p>}
     <div className="train-action-bar"><button className="train-primary" disabled={!session.sets.length && !didSave} onClick={() => {
       if (didSave) { onDone(); return; }
-      try { saveSession({ ...session, symptomFeeling: feeling }, note, Date.now()); setDidSave(true); setError(''); } catch (error) { setError(error instanceof Error ? error.message : 'Could not save. Your session is still here; try again.'); }
+      try { saveSession({ ...session, symptomFeeling: feeling }, note, Date.now()); const draft = loadWorkoutDraft(); if (draft?.session?.id === session.id || draft?.flow?.workoutId === session.id) clearWorkoutDraft(); setDidSave(true); setError(''); } catch (error) { setError(error instanceof Error ? error.message : 'Could not save. Your session is still here; try again.'); }
     }}>{didSave ? 'Done' : simulated ? 'Save simulator test' : 'Save workout'}</button>{didSave && <p role="status">{simulated ? 'Saved to simulator tests.' : 'Saved on this device and added to your journal.'}</p>}</div>
   </main>;
 }
@@ -122,16 +124,18 @@ function GuidedSet({ prescription: p, session, now, remaining, cue }: { prescrip
     <div className="session-info"><strong>{preparing ? prescriptionLabel(p) : p.kind === 'timed' ? 'Grip without movement' : 'Follow the movement cues'}</strong><span>{cue}</span></div>
   </section>;
 }
-function ActiveSession({ preset, source, onDone, onComplete, position }: { preset: WorkoutPreset; source: MeasurementSource; onDone: () => void; onComplete?: (session: Session) => void; position?: string }) {
+function ActiveSession({ preset, source, onDone, onComplete, position, initial, onSession }: { preset: WorkoutPreset; source: MeasurementSource; onDone: () => void; onComplete?: (session: Session) => void; position?: string; initial?: Session; onSession?: (session: Session) => void }) {
   const exercise = exercises.find(e => e.id === preset.exerciseId)!;
-  const { session, now, act, connected, tared, busy, device, error, connect, tare, start, simulateDrop } = useWorkoutSession(preset, exercise, source);
+  const { session, now, act, connected, tared, busy, device, error, connect, tare, start, simulateDrop } = useWorkoutSession(preset, exercise, source, initial);
+  const [draftError, setDraftError] = useState('');
+  useEffect(() => { try { if (onSession) onSession(session); else saveWorkoutDraft({ route: `/train/${preset.id}`, title: preset.name, session }); queueMicrotask(() => setDraftError('')); } catch { queueMicrotask(() => setDraftError('Could not save workout progress on this device.')); } }, [session, preset.id, preset.name, onSession]);
   const p = session.preset.prescription;
   const [reps, setReps] = useState(p.kind === 'reps' ? String(p.reps) : '5');
   const [load, setLoad] = useState(p.kind === 'reps' ? String(p.addedLoadKg) : '0');
   const [manualMean, setManualMean] = useState('');
   const [confirmStop, setConfirmStop] = useState(false);
   const delivered = useRef(false);
-  useEffect(() => { if (preset.prescription.kind === 'timed' || preset.prescription.kind === 'paced') act({ type: 'prepare', now: Date.now() }); }, [preset, act]);
+  useEffect(() => { if (!initial && (preset.prescription.kind === 'timed' || preset.prescription.kind === 'paced')) act({ type: 'prepare', now: Date.now() }); }, [preset, act, initial]);
   useEffect(() => {
     if (session.phase === 'review' && onComplete && !delivered.current) { delivered.current = true; onComplete(session); }
   }, [session, onComplete]);
@@ -145,6 +149,7 @@ function ActiveSession({ preset, source, onDone, onComplete, position }: { prese
   const remaining = remainingSeconds(session, now);
   return <main className="train-page session-page" data-category={exercise.category} data-phase={session.phase}>
     <Header title="Active session" back={onComplete ? 'Stop' : 'Review & finish'} onBack={onComplete ? () => setConfirmStop(true) : review} counter={`Set ${session.currentSet} / ${p.sets}`} />
+    {draftError && <p role="alert">{draftError}</p>}<button className="train-text-button continue-later" onClick={() => { act({ type: 'interrupt', now: Date.now(), reason: 'Session paused. Retry this set.' }); navigate('/do'); }}>Continue later</button>
     <span className="train-eyebrow">{position ?? `${exercise.category === 'rehab' ? 'Rehab' : 'Strength'} · ${session.phase === 'rest' ? 'Rest' : session.phase === 'result' ? 'Set result' : 'In session'}`}</span>
     <h1>{preset.name}</h1>
     <p className="train-subtitle">{p.kind === 'reps' ? `Target ${p.reps} reps · ${p.addedLoadKg ? `+${p.addedLoadKg} kg` : 'bodyweight'}` : p.kind === 'hold' ? `${p.hand} hand · ${p.edgeMm} mm · ${p.grip}` : exercise.description}</p>
@@ -208,14 +213,25 @@ function SourcePicker({ source, onChange }: { source: MeasurementSource; onChang
   </details>;
 }
 function WorkoutFlow({ plan, onDone }: { plan: WorkoutPlan; onDone: () => void }) {
-  const [snapshot] = useState(() => structuredClone({ plan, presets: planPresets(plan) }));
-  const [workoutId] = useState(() => crypto.randomUUID());
-  const [startedAt] = useState(() => new Date().toISOString());
-  const [source, setSource] = useState<MeasurementSource>(() => progressorAvailability().available ? 'tindeq' : 'manual');
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [running, setRunning] = useState<WorkoutPreset | null>(null);
-  const [review, setReview] = useState<Session | null>(null);
-  const [optional, setOptional] = useState<string[]>([]);
+  const [draft] = useState(() => { const value = loadWorkoutDraft(); return value?.route === `/train/${plan.id}` ? value : null; });
+  const [snapshot] = useState(() => draft?.flow?.snapshot ?? structuredClone({ plan, presets: planPresets(plan) }));
+  const [workoutId] = useState(() => draft?.flow?.workoutId ?? crypto.randomUUID());
+  const [startedAt] = useState(() => draft?.flow?.startedAt ?? new Date().toISOString());
+  const [source, setSource] = useState<MeasurementSource>(() => draft?.flow?.source ?? (progressorAvailability().available ? 'tindeq' : 'manual'));
+  const [sessions, setSessions] = useState<Session[]>(() => draft?.flow?.sessions ?? []);
+  const [running, setRunning] = useState<WorkoutPreset | null>(() => draft?.flow?.running ?? null);
+  const [review, setReview] = useState<Session | null>(() => draft?.flow?.review ?? null);
+  const [optional, setOptional] = useState<string[]>(() => draft?.flow?.optional ?? []);
+  const [initialRunning, setInitialRunning] = useState(() => draft?.flow?.runningSession ? restoredSession(draft.flow.runningSession, draft.updatedAt) : undefined);
+  const runningSession = useRef<Session | undefined>(initialRunning);
+  const [draftError, setDraftError] = useState('');
+  const persist = useCallback((session?: Session) => {
+    if (session) runningSession.current = session;
+    if (!running && !sessions.length && !review) return;
+    try { saveWorkoutDraft({ route: `/train/${plan.id}`, title: snapshot.plan.name, flow: { snapshot, workoutId, startedAt, source, sessions, running, review, optional, runningSession: runningSession.current } }); queueMicrotask(() => setDraftError('')); }
+    catch { queueMicrotask(() => setDraftError('Could not save workout progress on this device.')); }
+  }, [plan.id, snapshot, workoutId, startedAt, source, sessions, running, review, optional]);
+  useEffect(() => { persist(); }, [persist]);
   const selected = snapshot.presets.filter(preset => !preset.optional || optional.includes(preset.id));
   const runnable = selected.filter(preset => !preset.locked);
   const next = runnable.find(preset => !sessions.some(session => session.preset.id === preset.id));
@@ -224,14 +240,14 @@ function WorkoutFlow({ plan, onDone }: { plan: WorkoutPlan; onDone: () => void }
   const summarise = (results: Session[]) => summariseWorkout(snapshot.plan, selected, results, source === 'simulator' && hasForce ? 'simulator' : results.some(session => session.source === 'tindeq') ? 'tindeq' : 'manual', workoutId, startedAt);
   function complete(session: Session) {
     const results = session.sets.length ? [...sessions, session] : sessions;
-    setSessions(results); setRunning(null); window.scrollTo(0, 0);
+    runningSession.current = undefined; setInitialRunning(undefined); setSessions(results); setRunning(null); window.scrollTo(0, 0);
     if (results.length === runnable.length) setReview(summarise(results));
   }
   if (review) return <Review session={review} onDone={onDone} />;
-  if (running) return <ActiveSession key={running.id} preset={running} source={running.prescription.kind === 'hold' ? source : 'manual'} onDone={onDone} onComplete={complete} position={`Exercise ${runnable.indexOf(running) + 1} / ${runnable.length}`} />;
+  if (running) return <ActiveSession key={running.id} preset={running} source={running.prescription.kind === 'hold' ? source : 'manual'} onDone={onDone} onComplete={complete} initial={initialRunning?.preset.id === running.id ? initialRunning : undefined} onSession={persist} position={`Exercise ${runnable.indexOf(running) + 1} / ${runnable.length}`} />;
   return <main className="train-page preview-page workout-overview" data-category={category}>
-    <Header title="Workout preview" back="Train" onBack={onDone} />
-    <h1>{snapshot.plan.name}</h1><p className="train-subtitle">{runnable.length} {runnable.length === 1 ? 'exercise' : 'exercises'} · ~{workoutMinutes(snapshot.plan, runnable.map(preset => ({ ...preset, optional: false })))} min · {rehabPlanNote(snapshot.plan)}</p>
+    <Header title="Workout preview" back="Do" onBack={onDone} />
+    {draftError && <p role="alert">{draftError}</p>}<h1>{snapshot.plan.name}</h1><p className="train-subtitle">{runnable.length} {runnable.length === 1 ? 'exercise' : 'exercises'} · ~{workoutMinutes(snapshot.plan, runnable.map(preset => ({ ...preset, optional: false })))} min · {rehabPlanNote(snapshot.plan)}</p>
     {hasForce && <SourcePicker source={source} onChange={setSource} />}
     <ol className="exercise-preview-list" aria-label="Workout exercises">{snapshot.presets.map((preset, index) => {
       const result = sessions.find(session => session.preset.id === preset.id);
@@ -240,11 +256,13 @@ function WorkoutFlow({ plan, onDone }: { plan: WorkoutPlan; onDone: () => void }
         <span className="exercise-order">{preset.locked ? <Lock /> : result ? <Check /> : index + 1}</span><div><strong>{preset.name}</strong><small>{result ? exerciseSummary(result) : preset.locked ? preset.locked.label : prescriptionLabel(preset.prescription)}</small>{preset.locked && <p>{preset.locked.note}</p>}{preset.optional && <label className="optional-exercise"><input type="checkbox" checked={optional.includes(preset.id)} disabled={!!sessions.length} onChange={event => setOptional(current => event.target.checked ? [...current, preset.id] : current.filter(id => id !== preset.id))} /> Include optional exercise</label>}</div>{preset.locked ? <span className="exercise-tag">{preset.locked.label}</span> : upNext ? <span className="exercise-tag">Up next</span> : null}
       </li>;
     })}</ol>
-    <div className="train-action-bar">{next && <button className="train-primary" onClick={() => { setRunning(next); window.scrollTo(0, 0); }}>{sessions.length ? `Start ${next.name.toLowerCase()}` : 'Start workout'}</button>}{!!sessions.length && <button className="train-text-button" onClick={() => setReview(summarise(sessions))}>Finish workout & review</button>}</div>
+    <div className="train-action-bar">{next && <button className="train-primary" onClick={() => { runningSession.current = undefined; setRunning(next); window.scrollTo(0, 0); }}>{sessions.length ? `Start ${next.name.toLowerCase()}` : 'Start workout'}</button>}{!!sessions.length && <button className="train-text-button" onClick={() => setReview(summarise(sessions))}>Finish workout & review</button>}</div>
   </main>;
 }
 function TrainScreens({ presetId }: { presetId?: string }) {
-  const [active, setActive] = useState<{ preset: WorkoutPreset; source: MeasurementSource } | null>(null);
+  const [draft] = useState(() => { const value = loadWorkoutDraft(); return value?.route === `/train/${presetId}` && value.session ? value : null; });
+  const [active, setActive] = useState<{ preset: WorkoutPreset; source: MeasurementSource } | null>(() => draft?.session ? { preset: draft.session.preset, source: draft.session.source } : null);
+  const [initialSession] = useState(() => draft?.session ? restoredSession(draft.session, draft.updatedAt) : undefined);
   const bluetooth = progressorAvailability();
   const [source, setSource] = useState<MeasurementSource>(() => progressorAvailability().available ? 'tindeq' : 'manual');
   const [history, setHistory] = useState(loadSessions);
@@ -253,17 +271,17 @@ function TrainScreens({ presetId }: { presetId?: string }) {
   const rehab = useRehab();
   const base = workoutPresets.find(p => p.id === presetId);
   const preset = base ? resolvePreset(base, rehab.data) : undefined;
-  const plan = workoutPlans.find(plan => plan.id === presetId);
-  function done() { setActive(null); setDetail(null); setHistory(loadSessions()); navigate('/train'); }
+  const plan = loadWorkoutPlans().find(plan => plan.id === presetId);
+  function done() { setActive(null); setDetail(null); setHistory(loadSessions()); navigate('/do'); }
   function open(plan: WorkoutPlan) { setActive(null); navigate(`/train/${plan.id}`); }
   if (plan) return <WorkoutFlow key={plan.id} plan={plan} onDone={done} />;
-  if (active && presetId === active.preset.id) return <ActiveSession preset={active.preset} source={active.source} onDone={done} />;
+  if (active && presetId === active.preset.id) return <ActiveSession preset={active.preset} source={active.source} initial={initialSession} onDone={done} />;
   if (detail && !presetId) return <Review key={detail.id} session={detail} onDone={done} saved />;
   if (preset) {
     const exercise = exercises.find(e => e.id === preset.exerciseId)!;
     const p = preset.prescription;
     return <main className="train-page preview-page" data-category={exercise.category}>
-      <Header title="Workout preview" back="Train" onBack={done} />
+      <Header title="Workout preview" back="Do" onBack={done} />
       <span className="train-eyebrow">{exercise.category === 'rehab' ? 'Rehab' : 'Strength'} · Workout</span><h1>{preset.name}</h1><p className="train-subtitle">{exercise.description}</p>
       <section className="train-card prescription-card"><div className="prescription-heading"><span className="set-number">1</span><div><span className="train-eyebrow">The plan</span><h2>{preset.locked ? preset.locked.label : prescriptionLabel(p)}</h2></div></div>
         {p.kind === 'hold' && <p className="grip-description">{p.hand} hand · {p.edgeMm} mm · {p.grip}</p>}
@@ -278,9 +296,9 @@ function TrainScreens({ presetId }: { presetId?: string }) {
       <div className="train-action-bar">{preset.locked && <p role="status">{preset.locked.note}</p>}<button className="train-primary" disabled={!!preset.locked} onClick={() => { setActive({ preset, source: p.kind === 'hold' ? source : 'manual' }); window.scrollTo(0, 0); }}>Start workout</button><p>{p.kind === 'hold' && source !== 'manual' ? 'Next: connect, remove all load, then tare.' : 'One set at a time. Finish early whenever you need.'}</p></div>
     </main>;
   }
-  const featured = workoutPlans.find(plan => plan.featured) ?? workoutPlans[0];
+  const featured = loadWorkoutPlans().find(plan => plan.featured) ?? loadWorkoutPlans()[0];
   const featuredPresets = planPresets(featured);
-  const otherPlans = workoutPlans.filter(plan => plan !== featured);
+  const otherPlans = loadWorkoutPlans().filter(plan => plan !== featured);
   const lastFeatured = history.find(session => session.workout?.plan.id === featured.id);
   return <main className="train-page train-home">
     <header className="train-home-heading"><span className="train-eyebrow">{today}</span><h1>Train</h1></header>
@@ -298,10 +316,11 @@ function TrainScreens({ presetId }: { presetId?: string }) {
       <span className="history-date">{new Date(session.startedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span><span><strong>{sessionName(session)}</strong><small>{session.workout ? `${session.workout.sessions.length} exercises` : `${session.sets.length} sets`} · {sourceLabel(session.source)}</small></span><Chevron />
     </button>) : <p className="history-empty">Your saved workouts will appear here.</p>}</div></section>
     {import.meta.env.DEV && <details className="simulator-history"><summary>Simulator tests</summary><p>Test results stay separate from workout history and the journal.</p>{loadSessions(localStorage, true).map(session => <button className="history-row" key={session.id} onClick={() => setDetail(session)}>{sessionName(session)} · {session.sets.length} sets<Chevron /></button>)}</details>}
-    <PrimaryNav active="train" />
   </main>;
 }
 
 export default function Train({ presetId }: { presetId?: string }) {
-  return <div className="development-screen"><InDevelopment /><TrainScreens presetId={presetId} /></div>;
+  const [otherDraft, setOtherDraft] = useState(() => { const draft = loadWorkoutDraft(); return presetId && draft?.route !== `/train/${presetId}` ? draft : null; });
+  const [error, setError] = useState('');
+  return <div className="development-screen"><InDevelopment />{otherDraft ? <main className="train-page"><h1>Workout in progress</h1><p>{otherDraft.title}</p><a className="primary-button full-width" href={`#${otherDraft.route}`}>Resume workout</a><button className="train-text-button" onClick={() => { try { clearWorkoutDraft(); setOtherDraft(null); } catch { setError('Could not discard workout progress.'); } }}>Discard progress and open workout</button>{error && <p role="alert">{error}</p>}</main> : <TrainScreens presetId={presetId} />}<PrimaryNav active="do" /></div>;
 }

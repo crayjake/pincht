@@ -1,6 +1,6 @@
+import { loadWorkoutPlans } from '../workouts/catalog';
 import { localDate, type Category } from '../components/home/journal-data';
 import { loadRehab, rehabTasks, completedExercise, validDate } from '../rehab/data';
-import { workoutPlans } from '../workouts/fixtures';
 import type { Session } from '../workouts/session';
 import { addDays, checkIn, realSessions, routineWorkoutPlanIds, scheduled, sessionDate, weekStart, type Routine, type RoutineData } from './data';
 
@@ -21,7 +21,7 @@ export function allRoutines(data: RoutineData): Routine[] {
 }
 function matchingSessions(routine: Routine, sessions: Session[]) {
   const plans = routinePlans(routine);
-  return [...new Map(realSessions(sessions).map(session => [session.id, session])).values()].filter(session => sessionDate(session) >= routine.start && (!plans.length || plans.some(id => session.workout?.plan.id === id || session.preset.id === id || workoutPlans.find(plan => plan.id === id)?.presetIds.includes(session.preset.id))));
+  return [...new Map(realSessions(sessions).map(session => [session.id, session])).values()].filter(session => sessionDate(session) >= routine.start && (!plans.length || plans.some(id => session.workout?.plan.id === id || session.preset.id === id || loadWorkoutPlans().find(plan => plan.id === id)?.presetIds.includes(session.preset.id))));
 }
 export function completionDates(routine: Routine, data: RoutineData, sessions: Session[]) {
   return [...data.checkIns.filter(c => c.routineId === routine.id && c.status === 'done').map(c => c.date),
