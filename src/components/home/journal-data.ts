@@ -16,19 +16,21 @@ export interface JournalRecord {
   meta: string;
   note?: string;
   climb?: { goes: number; sendGo?: number };
+  climbInfo?: { type: 'boulder' | 'route'; where: string; notes?: string };
   sleep?: SleepNight;
   progress?: { completed: number; total: number };
-  goal?: { metric: 'finger-strength'; targetKg: number };
+  goal?: { metric: 'finger-strength'; targetKg: number; seriesId?: string };
+  climbGoal?: { climbIds: string[]; targetDate?: string; tags?: string[] };
 }
 export type RichNode = { type: 'text'; text: string; marks?: { type: string; attrs?: Record<string, unknown> }[] } | {
-  type: 'recordPill'; attrs: { id: string; label: string; category: Category };
+  type: 'recordPill' | 'climbCard'; attrs: { id: string; label: string; category: Category };
 } | {
-  type: 'paragraph' | 'heading' | 'bulletList' | 'orderedList' | 'listItem' | 'blockquote' | 'codeBlock' | 'hardBreak' | 'horizontalRule';
+  type: 'paragraph' | 'heading' | 'bulletList' | 'orderedList' | 'listItem' | 'blockquote' | 'codeBlock' | 'hardBreak' | 'horizontalRule' | 'image' | 'taskList' | 'taskItem' | 'journalBlock';
   attrs?: Record<string, unknown>;
   content?: RichNode[];
 };
 export interface RichBody { type: 'doc'; content: RichNode[] }
-export interface Entry { title: string; body: RichBody }
+export interface Entry { title: string; body: RichBody; tags?: string[] }
 export interface Day {
   date: string;
   types: DayType[];
@@ -45,7 +47,7 @@ export function entryRecords(day: Day, resources: PillResource[]): PillResource[
   const byId = new Map(resources.map(record => [record.id, record]));
   function visit(nodes: RichNode[]) {
     for (const node of nodes) {
-      if (node.type === 'recordPill') {
+      if ((node.type === 'recordPill' || node.type === 'climbCard')) {
         const record = byId.get(node.attrs.id);
         if (record && !records.has(record.id)) records.set(record.id, record);
       } else if ('content' in node && node.content) visit(node.content);
@@ -114,16 +116,17 @@ export function dayMatches(day: Day, query: string, selected: Category[], from: 
   if (selected.length && !selected.some(category => day.types.includes(category) || day.records.some(r => r.kind === category))) return false;
   const searchable = [day.date, shortDate(day.date, { weekday: 'long', month: 'long' }), ...day.types, day.entry?.title,
     ...richText(day.entry?.body.content ?? []),
-    ...day.records.flatMap(r => [r.title, r.metric, r.meta, r.note])].join(' ').toLocaleLowerCase();
+    ...day.records.flatMap(r => [r.title, r.metric, r.meta, r.note, r.climbInfo?.notes])].join(' ').toLocaleLowerCase();
   return searchable.includes(query.trim().toLocaleLowerCase());
 }
 
 export function richText(nodes: RichNode[]): string[] {
-  return nodes.flatMap(node => node.type === 'text' ? [node.text] : node.type === 'recordPill' ? [node.attrs.label] : richText(node.content ?? []));
+  return nodes.flatMap(node => node.type === 'text' ? [node.text] : (node.type === 'recordPill' || node.type === 'climbCard') ? [node.attrs.label] : richText('content' in node ? node.content ?? [] : []));
 }
 
 export function hasJournalContent(entry?: Entry) {
-  return !!entry && !!(entry.title.trim() || richText(entry.body.content).join('').trim());
+  const hasBlock = (nodes: RichNode[]): boolean => nodes.some(node => ['image', 'journalBlock'].includes(node.type) || ('content' in node && hasBlock(node.content ?? [])));
+  return !!entry && !!(entry.title.trim() || richText(entry.body.content).join('').trim() || hasBlock(entry.body.content));
 }
 
 export function getNights(days: Day[]) {

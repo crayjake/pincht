@@ -15,13 +15,16 @@ export class ProgressorTransport implements ForceTransport {
   private queue: Promise<void> = Promise.resolve();
   private events: TransportEvents;
   private client: BleClientInterface;
-  constructor(events: TransportEvents, client: BleClientInterface = BleClient) { this.events = events; this.client = client; }
+  private options: { deviceId?: string; onDevice?: (id:string,name:string)=>void };
+  constructor(events: TransportEvents, client: BleClientInterface = BleClient, options: { deviceId?: string; onDevice?: (id:string,name:string)=>void } = {}) { this.events = events; this.client = client; this.options = options; }
   async connect() {
     try {
       await this.client.initialize();
       if (!await this.client.isEnabled()) throw new Error('Bluetooth is off. Enable it in your device settings.');
       if (this.disposed) throw new Error('Session closed');
-      const device = await this.client.requestDevice({ services: [PROGRESSOR_SERVICE] });
+      const remembered = this.options.deviceId ? (await this.client.getDevices([this.options.deviceId])).find(device => device.deviceId === this.options.deviceId) : undefined;
+      if (this.options.deviceId && !remembered) throw new Error('Saved Progressor unavailable. Tap Connect to select it again.');
+      const device = remembered ?? await this.client.requestDevice({ services: [PROGRESSOR_SERVICE] });
       if (this.disposed) throw new Error('Session closed');
       this.deviceId = device.deviceId;
       await this.client.connect(device.deviceId, () => {
@@ -40,7 +43,9 @@ export class ProgressorTransport implements ForceTransport {
         } catch { this.events.error('Invalid Progressor data. Tare and retry the hold.'); }
       });
       if (this.disposed) { await this.dispose(); throw new Error('Session closed'); }
-      return device.name || 'Tindeq Progressor';
+      const name = device.name || 'Tindeq Progressor';
+      this.options.onDevice?.(device.deviceId, name);
+      return name;
     } catch (error) {
       await this.dispose();
       throw error;

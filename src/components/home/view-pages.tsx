@@ -4,15 +4,16 @@ import { viewTags, type ViewTag } from '../../routines/tasks';
 import { climbingView, loadViews, saveView, widgetNames, fullWidgets, type JournalView, type ViewBlock, type WidgetId } from './journal-views';
 import './home.scss';
 import { loadResources } from './journal-storage';
+import { viewEditorHref, viewEditorReturnPath } from './view-navigation';
 
 const blockNames = { widgets: 'Widgets', todo: 'To-do', journal: 'Journal', chart: 'Chart' };
-export function ViewPages({ id }: { id?: string }) {
+export function ViewPages({ id, returnTo }: { id?: string; returnTo?: string }) {
   const [views] = useState(loadViews);
   const view = id === 'new' ? { ...structuredClone(climbingView), id: crypto.randomUUID(), name: '', isDefault: false } : views.find(v => v.id === id);
-  if (id) return view ? <ViewEditor key={id} view={view} /> : <main className="today-page"><a href="#/views">Back to views</a><p>View not found.</p></main>;
-  return <><main className="today-page configuration-page"><header className="screen-heading"><div><h1>Views</h1><p>Your data, filtered and arranged</p></div><a className="text-action" href="#/views/edit/new">Add view</a></header><div className="settings-list">{views.map(view => <div className="settings-row" key={view.id}><a href={`#/view/${view.id}`}><strong>{view.name}</strong><small>{view.tags.join(' · ') || 'All entries and routines'}</small></a><a className="text-action" href={`#/views/edit/${view.id}`}>Edit</a></div>)}</div></main><PrimaryNav active="library" /></>;
+  if (id) return view ? <ViewEditor key={id} view={view} returnTo={returnTo} /> : <main className="today-page"><a href="#/views">Back to views</a><p>View not found.</p></main>;
+  return <><main className="today-page configuration-page"><header className="screen-heading"><div><h1>Views</h1><p>Your data, filtered and arranged</p></div><a className="text-action" href={viewEditorHref('new')}>Add view</a></header><div className="settings-list">{views.map(view => <div className="settings-row" key={view.id}><a href={`#/view/${view.id}`}><strong>{view.name}</strong><small>{view.tags.join(' · ') || 'All entries and routines'}</small></a><a className="text-action" href={viewEditorHref(view.id)}>Edit</a></div>)}</div></main><PrimaryNav active="library" /></>;
 }
-function ViewEditor({ view }: { view: JournalView }) {
+function ViewEditor({ view, returnTo }: { view: JournalView; returnTo?: string }) {
   const [value, setValue] = useState(() => structuredClone(view));
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
@@ -26,7 +27,7 @@ function ViewEditor({ view }: { view: JournalView }) {
   }
   function drop(event: DragEvent, to: number) { event.preventDefault(); if (dragged !== null) reorder(dragged, to); setDragged(null); }
   const presets: Record<string, ViewTag[]> = { Climbing: ['climb', 'rehab', 'training'], Reading: ['reading'], Habits: ['habit'], Sleep: ['sleep'], Custom: [] };
-  return <><main className="today-page configuration-page"><header className="editor-heading"><a className="text-action" href={view.name ? `#/view/${view.id}` : '#/views'}>Cancel</a><h1>{view.name ? 'Edit view' : 'New view'}</h1><button className="save-action" onClick={() => { try { saveView(value); location.hash = `/view/${value.id}`; } catch (cause) { setError((cause as Error).message); } }}>Done</button></header>
+  return <><main className="today-page configuration-page"><header className="editor-heading"><a className="text-action" href={viewEditorReturnPath(returnTo)}>Cancel</a><h1>{view.name ? 'Edit view' : 'New view'}</h1><button className="save-action" onClick={() => { try { saveView(value); location.hash = `/view/${value.id}`; } catch (cause) { setError((cause as Error).message); } }}>Done</button></header>
     {error && <p role="alert">{error}</p>}
     <label className="settings-field"><span className="eyebrow muted">Name</span><input aria-label="View name" value={value.name} onChange={e => patch({ name: e.target.value })} /></label>
     <section className="settings-section"><h2 className="eyebrow muted">Start from a premade filter</h2><div className="settings-chips">{Object.entries(presets).map(([name, tags]) => <button key={name} aria-pressed={preset === name} onClick={() => { patch({ tags }); setPreset(name); }}>{name}</button>)}</div></section>

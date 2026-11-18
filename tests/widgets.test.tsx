@@ -12,6 +12,7 @@ import { DATA_MODE_KEY } from '../src/data/mode';
 import { createRoutines, ROUTINES_KEY } from '../src/routines/data';
 import { createDemoData } from '../src/data/demo';
 import { exercises, workoutPresets } from '../src/workouts/fixtures';
+import { saveClimbSession } from '../src/climbs/data';
 import { createSession, type Session } from '../src/workouts/session';
 
 const today = '2026-11-16';
@@ -33,9 +34,9 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 it('creates a strength goal, logs a measurement, and binds the target to a saved view', () => {
   const page = render(<LibraryPage category="goals" id="new" onDataMode={() => {}} />);
-  change('Name', '25 kg drag'); change('Measure', 'finger-strength'); change('Target load · kg', '25'); click('Create goal');
+  change('Name', '25 kg drag'); click('Number'); change('Target · kg', '25'); click('Create goal');
   const goal = loadResources()[0];
-  expect(goal.goal).toEqual({ metric: 'finger-strength', targetKg: 25 });
+  expect(goal.goal).toEqual({ metric: 'finger-strength', targetKg: 25, seriesId: 'explicit-load:three-finger-drag:20mm' });
   page.unmount();
   const detail = render(<LibraryPage category="goals" id={goal.id} onDataMode={() => {}} />);
   click('Log measurement'); change('20 mm three-finger drag · kg', '22.5'); click('Save measurement');
@@ -49,7 +50,7 @@ it('creates a strength goal, logs a measurement, and binds the target to a saved
   render(<ViewPages id="climbing" />);
   click('Configure Widgets'); click('Finger strength'); change('Strength target', goal.id); click('Done');
   expect(loadViews().find(view => view.id === 'climbing')!.blocks[0]).toMatchObject({ widgets: ['rehab', 'climbing', 'strength'], goalId: goal.id });
-  expect(strengthMeasurements(loadDays(), [{ date: today, kg: 20, edgeMm: 20 }])).toEqual([{ date: today, kg: 22.5, edgeMm: 20 }]);
+  expect(strengthMeasurements(loadDays())).toEqual([{ date: today, kg: 22.5, edgeMm: 20 }]);
 });
 
 it('validates optional stage totals and stores real stage durations without inventing sleep times', () => {
@@ -66,8 +67,10 @@ it('validates optional stage totals and stores real stage durations without inve
 
 it('keeps climbing duration as a daily total when another climb is logged', () => {
   const log = () => render(<QuickLog kind="climb" onClose={() => {}} />);
-  const first = log(); change('Name', 'Blue slab'); change('Grade', '6C'); change('Climbing time today · minutes · optional', '90'); click('Save climb'); first.unmount();
-  const second = log(); change('Climb', 'new'); change('Name', 'Red wall'); change('Grade', '7A'); fireEvent.click(screen.getByLabelText('Sent it')); click('Save climb'); second.unmount();
+  const first = log(); click('+ Create new climb'); change('Name', 'Blue slab'); change('Grade', '6C'); click('Create climb'); click('Save session'); first.unmount();
+  // Preserve the existing daily duration when another climb is logged.
+  saveClimbSession(today, loadDays()[0].records, [], 90);
+  const second = log(); click('+ Create new climb'); change('Name', 'Red wall'); change('Grade', '7A'); click('Create climb'); click('Sent'); click('Save session'); second.unmount();
   expect(loadDays()[0].measurements?.climbingMinutes).toBe(90);
   expect(loadDays()[0].records).toHaveLength(2);
   const model = widgetData(loadDays(), createRoutines(today), []);

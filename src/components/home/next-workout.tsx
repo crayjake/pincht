@@ -3,7 +3,7 @@ import { addDays, realSessions, weekStart, type RoutineData } from '../../routin
 import { allRoutines, routineCount, routineDone, routineDue, routinePlans } from '../../routines/tasks';
 import { loadWorkoutPlans } from '../../workouts/catalog';
 import { clearWorkoutDraft, loadWorkoutDraft } from '../../workouts/draft';
-import { planPresets } from '../../workouts/fixtures';
+import { planCategory, planPresets } from '../../workouts/fixtures';
 import { loadSessions } from '../../workouts/storage';
 import { localDate, shortDate } from './journal-data';
 import { Sheet } from './journal-sheet';
@@ -18,7 +18,7 @@ export function NextWorkout({ data, empty = false }: { data: RoutineData; empty?
   }).sort((a,b)=>a.date.localeCompare(b.date)||Number(a.weekly)-Number(b.weekly))[0];
   const plan = plans.find(plan=>draft?.route===`/train/${plan.id}`) ?? next?.plan;
   if (!draft && !next) return empty ? <section className="full-widget"><header><h2>Next up</h2></header><p className="widget-empty">No workouts scheduled.</p><a className="text-action" href="#/routines">Routines ›</a></section> : null;
-  return <><section className="next-workout" data-category={plan?.id.includes('rehab')?'rehab':plan?.id==='mobility'?'sleep':'training'}>
+  return <><section className="next-workout" data-category={plan?.id==='mobility'?'sleep':plan ? planCategory(plan) : 'training'}>
     <div className="next-eyebrow">{draft?'In progress':`Next up · ${next.weekly&&next.date===today?'due this week':next.date===today?'due today':`due ${shortDate(next.date,{weekday:'short',day:'numeric'})}`}`}</div><h2>{draft?.title??next.plan.name}</h2>
     {!draft&&<p>{planPresets(next.plan).filter(preset=>!preset.locked&&!preset.optional).map(preset=>preset.name).join(' · ')}</p>}
     <a className="open-workout" href={draft?`#${draft.route}`:`#/train/${next.plan.id}`}>{draft?'Resume workout':'Open workout'}</a>{draft&&<button className="text-action" onClick={()=>setDiscard(true)}>Discard progress</button>}

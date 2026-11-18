@@ -1,5 +1,5 @@
 import { emptyRehab, personalRehab } from '../src/rehab/data';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Train from '../src/components/train/train';
 import { SESSION_KEY, SIMULATOR_KEY } from '../src/workouts/storage';
@@ -17,7 +17,7 @@ async function advance(ms: number) {
 async function simulator() {
   render(<Train presetId="finger-rehab" />);
   fireEvent.click(screen.getByRole('radio', { name: /Simulator/ }));
-  await click('Start workout'); await click('Connect'); await click('Tare'); await click('Start hold');
+  await click('Start workout'); await click('Connect'); await click('Zero'); await click('Start without waiting');
 }
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-15T12:00:00Z'));
@@ -57,7 +57,7 @@ describe('workout screens', () => {
     fireEvent.change(screen.getByLabelText(/Symptom note/), { target: { value: 'Felt good' } });
     fireEvent.change(screen.getByLabelText('Effort · RPE 1–10 · optional'), { target: { value: '7' } });
     await click('Save workout');
-    expect(screen.getByRole('status').textContent).toContain('added to your journal');
+    expect(screen.getByRole('status').textContent).toContain('linked in your journal');
     const saved = JSON.parse(localStorage.getItem(SESSION_KEY)!)[0];
     expect(saved.sets[0]).toMatchObject({ reps: 4, addedLoadKg: 2.5, source: 'manual' });
     expect(saved.symptomNote).toBe('Felt good');
@@ -67,8 +67,8 @@ describe('workout screens', () => {
   it('simulator shows live samples; retry repeats the set; keep starts rest; save stays isolated', async () => {
     await simulator(); await advance(15_200);
     expect(screen.getByText(/15.0 s recorded · mean force/)).toBeTruthy();
-    await click('Retry set 1'); expect(screen.getByText('Set 1 / 6')).toBeTruthy();
-    await click('Start hold'); await advance(15_200); await click('Keep set');
+    await click('Retry set 1'); expect(screen.getByRole('button', { name: '0 of 6 sets kept' })).toBeTruthy();
+    await click('Start without waiting'); await advance(15_200); await click('Keep set');
     expect(screen.getByRole('timer').textContent).toBe('1:00');
     await click('Finish early & review'); await click('Save simulator test');
     expect(localStorage.getItem(SESSION_KEY)).toBeNull();
@@ -77,9 +77,9 @@ describe('workout screens', () => {
 
   it('a dropped stream interrupts and requires reconnect and tare before retry', async () => {
     await simulator(); await advance(600); await click('Test stream disconnect');
-    expect(screen.getByText(/Simulated stream disconnect/)).toBeTruthy();
+    expect(screen.getByText(/Progressor disconnected/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Keep set' })).toBeNull();
-    await click('Retry set 1'); await click('Connect'); await click('Tare'); await click('Start hold');
+    await click('Retry set 1'); await click('Connect'); await click('Zero'); await click('Start without waiting');
     await advance(1100); await click('Stop hold'); await click('Keep set');
     await click('Finish early & review'); expect(screen.getByText(/1 interrupted attempt/)).toBeTruthy();
     expect(screen.getByText('1 of 6 sets kept · Simulator · test only')).toBeTruthy();
@@ -93,7 +93,7 @@ describe('workout screens', () => {
     expect(screen.queryByRole('button', { name: 'Keep set' })).toBeNull();
     Object.defineProperty(document, 'hidden', { configurable: true, value: false });
     act(() => { document.dispatchEvent(new Event('visibilitychange')); });
-    await click('Retry set 1'); expect(screen.getByRole('button', { name: 'Tare' })).toBeTruthy();
+    await click('Retry set 1'); expect(screen.getByRole('button', { name: 'Zero' })).toBeTruthy();
   });
 
   it('native App background event interrupts even if document visibility is unchanged; unmount removes listener and timer', async () => {
@@ -136,17 +136,17 @@ describe('reference workout plans', () => {
     expect(screen.getByText('Unlocks after 28 full days.')).toBeTruthy();
     screen.getAllByRole('checkbox', { name: 'Include optional exercise' }).forEach(input => fireEvent.click(input));
     await click('Start workout');
-    expect(screen.getByRole('timer').textContent).toBe('0:05');
-    await advance(5000); expect(screen.getByText('Fingers straight')).toBeTruthy();
+    expect(screen.getByRole('timer').textContent).toBe('3');
+    await advance(3000); expect(screen.getByText('Fingers straight')).toBeTruthy();
     await advance(2000); expect(screen.getByText('Hook fist')).toBeTruthy();
     await click('Pause'); await advance(4000);
     expect(screen.getByText('Hook fist')).toBeTruthy();
     expect(screen.getByRole('timer').textContent).toBe('0:58');
-    await click('Resume'); await advance(58_000);
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Workout paused' })).getByRole('button', { name: 'Resume' })); await advance(58_000);
     expect(screen.getByText('6 reps')).toBeTruthy();
     await click('Start isometric mug grips'); await advance(15_000);
     expect(screen.getByText('Rest as needed. Start the next set when ready.')).toBeTruthy();
-    await click('Next set'); expect(screen.getByRole('timer').textContent).toBe('0:05');
+    await click('Next set'); expect(screen.getByRole('timer').textContent).toBe('3');
     await advance(5500);
     Object.defineProperty(document, 'hidden', { configurable: true, value: true });
     act(() => { document.dispatchEvent(new Event('visibilitychange')); });

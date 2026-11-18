@@ -1,11 +1,11 @@
 import { addDays, bookPage, checkIn, daysBetween, freeStreak, realSessions, sessionDate, weekStart, type RoutineData } from '../../routines/data';
 import { allRoutines, routineCount, routineDone, routineDue } from '../../routines/tasks';
-import { asleepMinutes, localDate, type Day, type JournalRecord, type RehabLoad } from './journal-data';
+import { asleepMinutes, localDate, type Day, type JournalRecord } from './journal-data';
+import { seriesMeasurements } from '../../workouts/measurements';
 import type { Session } from '../../workouts/session';
 
-export function strengthMeasurements(days: Day[], loads: RehabLoad[]) {
-  // A direct log replaces the workout-derived measurement for that day.
-  return [...new Map([...loads, ...days.flatMap(day => day.measurements?.fingerStrengthKg !== undefined ? [{ date: day.date, kg: day.measurements.fingerStrengthKg, edgeMm: 20 }] : [])].map(load => [load.date, load])).values()].sort((a,b) => a.date.localeCompare(b.date));
+export function strengthMeasurements(days: Day[]) {
+  return seriesMeasurements(days, []).map(point => ({ date: point.date, kg: point.kg, edgeMm: 20 }));
 }
 export const fontGrades = ['3','4','4+','5','5+','6A','6A+','6B','6B+','6C','6C+','7A','7A+','7B','7B+','7C','7C+','8A','8A+','8B','8B+','8C','8C+','9A'];
 export function gradeRank(grade: string) {

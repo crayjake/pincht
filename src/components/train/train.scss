@@ -194,3 +194,36 @@
 .session-dialog { width: min(100%, 430px); padding: 24px 24px max(28px, env(safe-area-inset-bottom, 0px)); border-radius: 28px 28px 0 0; background: var(--color-page); box-shadow: 0 -12px 32px rgb(36 40 32 / .15); h2 { font-size: 24px; line-height: 28px; margin: 0; } p { margin: 10px 0 22px; font-size: 15px; line-height: 22px; color: var(--color-text-muted); } .train-secondary { margin-top: 10px; min-height: 56px; } }
 @media (max-width: 360px) { .exercise-preview { gap: 8px; padding-inline: 10px; } .exercise-tag { padding-inline: 6px; } .featured-exercises li { gap: 6px; } }
 @media (prefers-color-scheme: dark) { .exercise-preview.is-next .exercise-order { color: var(--color-page); } }
+
+/* A1 paper timer from the workout reference. */
+.session-page {
+  padding-inline: 16px;
+  padding-bottom: max(34px, env(safe-area-inset-bottom, 0px));
+  .active-header { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; margin:0 -10px 0; > span { font:400 12px/16px var(--font-mono); text-transform:uppercase; letter-spacing:.06em; text-align:center; color:var(--color-text-muted); } button { display:grid; place-items:center; width:44px; height:44px; flex:none; border:0; padding:0; background:none; color:var(--color-text); } }
+  .exercise-segments { display:flex; gap:4px; margin:6px 0 0; span { flex:1; height:4px; border-radius:3px; background:var(--color-track); } .is-current { background:var(--color-text); opacity:.7; } .is-kept { background:var(--color-text); } }
+  > .train-eyebrow { display:none; }
+  h1 { text-align:center; font-size:28px; line-height:34px; margin:24px 0 6px; }
+  .active-tags { display:flex; justify-content:center; align-items:center; gap:8px; margin:0; span { color:var(--color-text-muted); font:400 13px/18px var(--font-mono); } [data-cat] { padding:2px 9px; border-radius:9px; background:var(--color-sidebar); font-size:12px; } [data-cat=rehab] { background:var(--color-rehab-bg); color:var(--color-rehab-fg); } [data-cat=training] { background:var(--color-training-bg); color:var(--color-training-fg); } }
+  > .train-subtitle { text-align:center; margin:8px 0 0; }
+  &[data-kind=timed] > .train-subtitle { display:none; }
+  .session-card { background:transparent; border:0; box-shadow:none; padding-inline:0; border-radius:0; }
+  .guided-card { flex:0; justify-content:center; padding:0; margin-top:22px; > .train-eyebrow { display:none; } .session-info { display:none; } }
+  .timer-ring { width:248px; height:248px; margin:0 auto; .timer-ring-value { stroke:var(--color-text); } .timer-ring-track { stroke:var(--color-track); } .big-timer { font:500 80px/84px var(--font-mono); letter-spacing:-.05em; } .train-muted { text-transform:uppercase; font:400 13px/18px var(--font-mono); letter-spacing:.08em; } }
+  .set-progress { order:4; align-self:center; display:flex; flex-direction:column; align-items:center; gap:8px; border:0; padding:0 12px; background:none; margin:18px 0 0; min-height:44px; width:auto;
+    .set-dots { display:flex; justify-content:center; align-items:center; gap:8px; height:12px; background:none; border-radius:0; flex:none; }
+    i { display:block; width:12px; height:12px; border:2px solid var(--color-text); border-radius:50%; opacity:.25; box-shadow:none; }
+    .is-kept { background:var(--color-text); opacity:1; } .is-current { background:transparent; opacity:1; }
+    small { color:var(--color-text-muted); font:400 12px/16px var(--font-mono); }
+  }
+  .train-action-bar { order:6; margin-top:auto; padding-top:24px; .train-primary,.train-secondary { min-height:56px; border-radius:28px; box-shadow:none; } .train-primary,.result-actions > :first-child { flex:1; background:var(--color-text); color:var(--color-page); border-color:var(--color-text); font-size:17px; font-weight:600; } .skip-exercise { flex:0 0 112px; background:transparent; border-width:1.5px; border-color:var(--color-text); } }
+  .next-exercise { order:5; display:flex; gap:14px; justify-content:space-between; align-items:center; padding:12px 14px; border:1px solid var(--color-border); border-radius:16px; margin-top:16px; font-size:15px;
+    > div > span { display:block; font:400 11px/16px var(--font-mono); text-transform:uppercase; letter-spacing:.06em; color:var(--color-text-muted); }
+    strong { display:block; font-weight:650; line-height:20px; }
+    small { font:400 12px/18px var(--font-mono); color:var(--color-text-muted); text-align:right; }
+  }
+  .active-set-list { order:3; .settings-row { width:100%; border:0; border-bottom:1px solid var(--color-border); background:none; } }
+  &:has(.active-set-list) .timer-ring { width:80px; height:80px; .big-timer { font-size:28px; line-height:32px; } .train-muted { font-size:8px; } circle { stroke-width:10px; } }
+  &:has(.active-set-list) .guided-card { flex:0; padding:0; }
+}
+.session-dialog .train-primary { margin-top:22px; }
+@media(max-width:360px) { .session-page .timer-ring { width:220px; height:220px; } }

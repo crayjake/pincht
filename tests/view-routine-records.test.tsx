@@ -25,6 +25,8 @@ async function change(label: string, value: string) {
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date(`${today}T12:00:00Z`));
   localStorage.clear(); localStorage.setItem(ROUTINES_KEY, JSON.stringify(createRoutines(today)));
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
   window.history.replaceState(null, '', '/#/journal'); window.scrollTo = vi.fn();
   window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
 });
@@ -57,7 +59,7 @@ it('saves weekly targets and assigned workouts, counting only matching saved rea
   expect(routine).toMatchObject({ target: 4, comparator: 'exactly', workoutPlanIds: ['pull-ups-3x5'] });
   function session(presetId: string, date = today, source: Session['source'] = 'manual'): Session {
     const preset = workoutPresets.find(p => p.id === presetId)!;
-    return { ...createSession(preset, exercises.find(e => e.id === preset.exerciseId)!, source, Date.parse(`${date}T12:00:00Z`)), phase: 'review', finishedAt: `${date}T12:10:00Z`, sets: [{ set: 1, source, reps: 5, status: 'completed', trace: [] }] };
+    return { ...createSession(preset, exercises.find(e => e.id === preset.exerciseId)!, source, Date.parse(`${date}T12:00:00Z`)), phase: 'review', finishedAt: `${date}T12:10:00Z`, sets: Array.from({length: preset.prescription.sets}, (_, i) => ({ set: i + 1, source, reps: 5, status: 'completed', trace: [] })) };
   }
   const matching = session('pull-ups-3x5');
   const sessions = [matching, matching, session('tendon-glides'), session('pull-ups-3x5', today, 'simulator'), session('pull-ups-3x5', '2026-11-15'), { ...session('pull-ups-3x5'), finishedAt: undefined }];
@@ -139,6 +141,11 @@ it('creates and reuses references in each picker category, with no creation unde
     await click(category.filter, picker);
     await click(`Create “${title}” as ${category.label}`, picker);
     expect(screen.queryByRole('dialog', { name: 'Link a record' })).toBeNull();
+    if (category.filter === 'Workouts') { await click('+ Add exercise'); await click(/Pull-ups/); await click('Done'); }
+    if (category.filter === 'Goals') { await click('Number'); }
+    if (category.filter === 'Climbs') { await change('Grade', '6B'); }
+    if (category.filter === 'Books') { await click('Can’t find it? Add manually'); await change('Total pages', '200'); }
+    await click(category.filter === 'Books' ? 'Add to library' : category.filter === 'Workouts' ? 'Save workout' : `Create ${category.label.slice(2)}`);
     expect(body.querySelector(`a[data-category="${category.kind}"]`)?.textContent).toBe(title);
     await mention(title);
     const duplicatePicker = within(screen.getByRole('dialog', { name: 'Link a record' }));
@@ -146,7 +153,7 @@ it('creates and reuses references in each picker category, with no creation unde
     await click(new RegExp(`^${title}`), duplicatePicker);
   }
   const stored = JSON.parse(localStorage.getItem(JOURNAL_RESOURCES_KEY)!) as JournalRecord[];
-  expect(stored.map(record => record.kind)).toEqual(categories.map(category => category.kind));
+  expect(stored.map(record => record.kind)).toEqual(['climb', 'goal']);
   expect(savedDays().find(day => day.date === today)?.records.map(record => record.kind)).toEqual(['climb']);
   expect(savedRoutines().checkIns).toEqual([]);
   unmount(); render(<Home entryDate={today} />);

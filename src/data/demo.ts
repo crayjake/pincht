@@ -1,4 +1,4 @@
-import { localDate, type Day } from '../components/home/journal-data.ts';
+import { localDate, type Day, type JournalRecord } from '../components/home/journal-data.ts';
 import { addDays, type RoutineData } from '../routines/data.ts';
 import { exercises, workoutPresets } from '../workouts/fixtures.ts';
 import { createSession, type Session } from '../workouts/session.ts';
@@ -10,22 +10,37 @@ const olderTitles = [
   'Keeping the warm-up simple', 'Making time for mobility', 'One move closer', 'Finishing with something easy',
 ];
 
+/** Replace the obsolete generated climb examples, retaining writing and user-created records. */
+export function refreshDemoClimbs(days: Day[]): Day[] {
+  const replacements = new Map<string, JournalRecord>();
+  for (const day of days) for (const record of day.records) {
+    const match = /^(sidepull|climb-(13|10|7|4))-demo-[012]$/.exec(record.id);
+    if (!match || record.kind !== 'climb' || record.climbInfo || !['Sidepull Season', 'Boulder session'].includes(record.title)) continue;
+    const example = seedDays.find(day => day.date === `2026-11-${(match[2] ?? '15').padStart(2, '0')}`)?.records.find(record => record.kind === 'climb');
+    if (example) replacements.set(record.id, { ...example, note: record.note ?? example.note });
+  }
+  if (!replacements.size) return days;
+  return days.map(day => ({ ...day,
+    records: day.records.map(record => replacements.get(record.id) ?? record),
+    ...(day.entry && { entry: { ...day.entry, body: JSON.parse(JSON.stringify(day.entry.body, (key, value) => {
+      const replacement = key === 'attrs' && value ? replacements.get(value.id) : undefined;
+      return replacement ? { ...value, id: replacement.id, label: replacement.title } : value;
+    })) } }),
+  }));
+}
+
 export function createDemoData(today = localDate()): { days: Day[]; routines: RoutineData; sessions: Session[] } {
   const offset = Math.round((Date.parse(today) - Date.parse('2026-11-16')) / 86400000);
   const shift = (date: string, block = 0) => addDays(date, offset - block * 14);
   const days = Array.from({ length: 3 }, (_, block) => seedDays.map(day => {
-    const ids = new Map(day.records.map(record => [record.id, `${record.id}-demo-${block}`]));
+    // Climbs and goals keep one identity across days; a climb session is a log of that object.
+    const ids = new Map(day.records.map(record => [record.id, record.kind === 'climb' || record.kind === 'goal' ? record.id : `${record.id}-demo-${block}`]));
     // Remap both logged records and inline references, including nested sleep dates.
     const shifted: Day = JSON.parse(JSON.stringify(day, (_key, value) => typeof value === 'string'
       ? /^\d{4}-\d{2}-\d{2}$/.test(value) ? shift(value, block) : ids.get(value) ?? value
       : value));
     // These are explicit demo logs, so widgets can exercise the same structured fields as real logs.
-    for (const record of shifted.records.filter(record => record.kind === 'climb')) {
-      const sidepull = record.id.startsWith('sidepull');
-      record.metric = sidepull ? '7A' : '6C+';
-      record.climb = { goes: sidepull ? 6 : 4, ...(sidepull || !record.id.startsWith('climb-7-') ? { sendGo: sidepull ? 6 : 3 } : {}) };
-      shifted.measurements = { climbingMinutes: sidepull ? 100 : 80 };
-    }
+    if (shifted.records.some(record => record.kind === 'climb')) shifted.measurements = { climbingMinutes: 80 };
     if (block && shifted.entry) shifted.entry.title = olderTitles[(block - 1) * 5 + seedDays.filter(d => d.entry).findIndex(d => d.date === day.date)];
     return shifted;
   })).flat();

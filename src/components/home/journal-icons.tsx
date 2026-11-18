@@ -1,5 +1,7 @@
-export function Icon({ name, size = 20 }: { name: 'search' | 'filter' | 'plus' | 'close' | 'note' | 'chevron' | 'more' | 'today' | 'train' | 'climbs' | 'metrics' | 'back' | 'check' | 'minus' | 'book' | 'play' | 'library' | 'bolt' | 'sleep' | 'drink' | 'weight' | 'goal'; size?: number }) {
+export function Icon({ name, size = 20 }: { name: 'settings' | 'barcode' | 'search' | 'filter' | 'plus' | 'close' | 'note' | 'chevron' | 'more' | 'today' | 'train' | 'climbs' | 'metrics' | 'back' | 'check' | 'minus' | 'book' | 'play' | 'library' | 'bolt' | 'sleep' | 'drink' | 'weight' | 'goal'; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={name === 'plus' ? 2 : 1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {name === 'settings' && <><path d="m9 3-1 3-3 1v3l-2 2 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-2V7l-3-1-1-3z" /><circle cx="12" cy="12" r="3" /></>}
+    {name === 'barcode' && <path d="M4 7V4h3m10 0h3v3M4 17v3h3m10 0h3v-3M8 8v8m3-8v8m3-8v8m3-8v8" />}
     {name === 'search' && <><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></>}
     {name === 'filter' && <><path d="M4 7h9M19 7h1M4 17h1M11 17h9" /><circle cx="16" cy="7" r="2.2" /><circle cx="8" cy="17" r="2.2" /></>}
     {name === 'plus' && <path d="M12 5v14M5 12h14" />}

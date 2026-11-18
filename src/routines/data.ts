@@ -13,7 +13,7 @@ export interface Routine {
   workoutPlanIds?: string[]; tags?: (Category | 'reading')[]; count?: 'workouts' | 'drinks';
   planSchedule?: 'pulley' | 'wrist';
 }
-export interface Book { id: string; title: string; author: string; pages: number; initialPage: number }
+export interface Book { id: string; title: string; author: string; pages: number; initialPage: number; status?: 'want-to-read' | 'reading' | 'finished'; started?: string; isbn?: string; catalogKey?: string }
 export interface CheckIn {
   routineId: string; date: string; status: 'done' | 'skipped'; reason?: string;
   minutes?: number; bookId?: string; page?: number; drinks?: number;
@@ -55,6 +55,7 @@ export function putCheckIn(data: RoutineData, value: CheckIn): RoutineData {
   const routine = data.routines.find(r => r.id === value.routineId);
   if (!routine || !routine.active || value.date < routine.start || (!scheduled(routine, value.date, doneDates(data, routine)) && routine.schedule !== 'weekly')) throw new Error('This routine is not scheduled for that day.');
   if (value.date > localDate()) throw new Error('Choose today or an earlier day.');
+  if (value.status === 'done' && ['training', 'rehab'].includes(routine.kind)) throw new Error('Complete the prescribed workout to log this routine.');
   if (value.status === 'done' && routine.kind === 'reading') {
     const book = data.books.find(b => b.id === value.bookId);
     if (!book || !Number.isInteger(value.minutes) || value.minutes! < 1 || (value.page !== undefined && (!Number.isInteger(value.page) || value.page < 0 || value.page > book.pages))) throw new Error('Check the book, reading time, and page number.');
@@ -65,6 +66,9 @@ export function putCheckIn(data: RoutineData, value: CheckIn): RoutineData {
 export function bookPage(data: RoutineData, bookId: string, before?: string) {
   const book = data.books.find(b => b.id === bookId);
   return Math.max(book?.initialPage ?? 0, ...data.checkIns.filter(c => c.status === 'done' && c.bookId === bookId && (!before || c.date < before)).map(c => c.page ?? 0));
+}
+export function removeCheckIn(data: RoutineData, routineId: string, date: string): RoutineData {
+  return { ...data, checkIns: data.checkIns.filter(value => value.routineId !== routineId || value.date !== date) };
 }
 export function unlogged(data: RoutineData, from: string, through: string) {
   return daysBetween(from, through).flatMap(date => data.routines.flatMap(routine =>

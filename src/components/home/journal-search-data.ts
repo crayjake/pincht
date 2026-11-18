@@ -12,7 +12,7 @@ export function searchJournal(days: Day[], data: RoutineData, query: string, fil
     if (!filter.unlogged) {
       for (const record of filter.entriesOnly ? [] : day.records) {
         if (selected && !(record.kind === 'habit' ? filter.routines : filter.categories.includes(record.kind))) continue;
-        if (matches(record.title, record.metric, record.meta, record.note)) results.push({ id: record.id, kind: 'record', date: day.date, record });
+        if (matches(record.title, record.metric, record.meta, record.note)) results.push({ id: `record-${day.date}-${record.id}`, kind: 'record', date: day.date, record });
       }
       const excerpt = richText(day.entry?.body.content ?? []).join('');
       if (day.entry && (!selected || day.types.some(type => type !== 'rest' && filter.categories.includes(type)) || day.records.some(r => filter.categories.includes(r.kind) || (filter.routines && r.kind === 'habit'))) && matches(day.entry.title, excerpt)) results.push({ id: `entry-${day.date}`, kind: 'entry', date: day.date, entry: day.entry, excerpt });

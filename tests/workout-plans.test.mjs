@@ -31,10 +31,10 @@ test('guided preparation, rest deadlines, pause, and completion preserve actual 
   base.preset.prescription.restSeconds = 30;
   base.preset.prescription.selfPacedRest = false;
   let s = reduce(base, { type: 'prepare', now: 0 });
-  assert.equal(remainingSeconds(s, 4999), 1);
-  s = reduce(s, { type: 'tick', now: 5000 });
+  assert.equal(remainingSeconds(s, 2999), 1);
+  s = reduce(s, { type: 'tick', now: 3000 });
   assert.equal(s.phase, 'holding');
-  s = reduce(s, { type: 'pause', now: 8000 });
+  s = reduce(s, { type: 'pause', now: 6000 });
   s = reduce(s, { type: 'tick', now: 100000 });
   assert.equal(s.phase, 'holding'); assert.equal(remainingSeconds(s, 100000), 7);
   s = reduce(s, { type: 'resume', now: 100000 });
@@ -44,7 +44,7 @@ test('guided preparation, rest deadlines, pause, and completion preserve actual 
   assert.equal(remainingSeconds(s, 107000), 45);
   s = reduce(s, { type: 'tick', now: 152000 });
   assert.equal(s.phase, 'preparing'); assert.equal(s.currentSet, 2);
-  s = reduce(s, { type: 'tick', now: 157000 });
+  s = reduce(s, { type: 'tick', now: 155000 });
   assert.equal(s.phase, 'holding');
 });
 

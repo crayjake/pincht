@@ -66,9 +66,12 @@ it('desktop browser discovers a real device, tares, streams through the plugin, 
     optionalServices: undefined, acceptAllDevices: false,
   });
   expect(peripheral.data.startNotifications).toHaveBeenCalledOnce();
-  await click('Tare'); await click('Start hold');
-  expect(peripheral.writes).toEqual([0x64, 0x65]);
+  await click('Zero');
+  expect(peripheral.writes).toEqual([0x66, 0x64, 0x65]);
+  act(() => peripheral.sample(1, 0));
+  expect(screen.getByRole('button', { name: 'Start without waiting' })).toBeTruthy();
   act(() => peripheral.sample(10, 0));
+  expect(screen.queryByRole('button', { name: 'Start without waiting' })).toBeNull();
   expect(screen.getByText('10.0')).toBeTruthy();
   for (let second = 1; second <= 15; second++) {
     await advance(1000); act(() => peripheral.sample(10, second));
@@ -94,7 +97,7 @@ it('browser cancellation and permission denial are recoverable and give browser-
   await click('Connect');
   expect(screen.getByRole('alert').textContent).toContain('browser’s site settings');
   expect(screen.queryByRole('button', { name: 'Open app settings' })).toBeNull();
-  await click('Connect'); expect(screen.getByRole('button', { name: 'Tare' })).toBeTruthy();
+  await click('Connect'); expect(screen.getByRole('button', { name: 'Zero' })).toBeTruthy();
 });
 
 it('a missing computer Bluetooth adapter leaves Connect available with a useful error', async () => {
@@ -110,11 +113,11 @@ it('a missing computer Bluetooth adapter leaves Connect available with a useful 
 it('a browser GATT disconnect interrupts a real hold and retry requires reconnect and tare', async () => {
   const peripheral = browserPeripheral();
   render(<Train presetId="finger-rehab" />);
-  await click('Start workout'); await click('Connect'); await click('Tare'); await click('Start hold');
+  await click('Start workout'); await click('Connect'); await click('Zero'); await click('Start without waiting');
   act(() => { peripheral.sample(10, 0); peripheral.gatt.disconnect(); });
   expect(screen.getByText('Progressor disconnected during the hold.')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Keep set' })).toBeNull();
-  await click('Retry set 1'); await click('Connect'); await click('Tare'); await click('Start hold');
+  await click('Retry set 1'); await click('Connect'); await click('Zero'); await click('Start without waiting');
   act(() => peripheral.sample(9, 0)); await advance(1000); act(() => peripheral.sample(11, 1));
   await click('Stop hold'); await click('Keep set'); await click('Finish early & review'); await click('Save workout');
   const saved = JSON.parse(localStorage.getItem(SESSION_KEY)!)[0];

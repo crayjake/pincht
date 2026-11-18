@@ -5,7 +5,7 @@ import { AlcoholSheet, ReadingSheet } from '../../routines/routine-sheets';
 import { localDate, shortDate } from './journal-data';
 import { loadWorkoutPlans } from '../../workouts/catalog';
 import { loadSessions } from '../../workouts/storage';
-import { planPresets, prescriptionLabel, type WorkoutPlan } from '../../workouts/fixtures';
+import { planCategory as workoutCategory, planPresets, prescriptionLabel, type WorkoutPlan } from '../../workouts/fixtures';
 import { QuickLog } from './quick-log';
 import { Sheet } from './journal-sheet';
 import { Icon } from './journal-icons';
@@ -23,7 +23,7 @@ export default function DoPage() {
   const sessions = realSessions(loadSessions());
   const today = localDate();
   const routine = routines.data.routines.find(routine => routine.kind === log && routine.active && routine.start <= today);
-  const planCategory = (plan: WorkoutPlan) => plan.id.includes('rehab') ? 'rehab' : plan.id === 'mobility' ? 'sleep' : 'training';
+  const planCategory = (plan: WorkoutPlan) => plan.id === 'mobility' ? 'sleep' : workoutCategory(plan);
   const quickLogs = [
     { kind: 'climb', label: 'Climb', icon: 'climbs' },
     { kind: 'reading', label: 'Read', icon: 'book' },
@@ -43,7 +43,7 @@ export default function DoPage() {
     <section className="home-section"><h2 className="eyebrow">Quick log</h2><div className="quick-log-grid">{quickLogs.map(item => <button key={item.kind} onClick={() => setLog(item.kind)}><Icon name={item.icon} size={22} /><span>{item.label}</span></button>)}<button onClick={() => setMore(true)}><Icon name="more" size={22} />More</button></div></section>
     {routines.error && <p role="alert">{routines.error}</p>}
   </main><PrimaryNav active="do" />
-    {more && <Sheet title="More" onClose={() => setMore(false)}><div className="settings-list"><a className="settings-row" href="#/train">Start workout</a><button className="settings-row" onClick={() => { setMore(false); setLog('finger'); }}>Finger strength · 20 mm drag</button>{allRoutines(routines.data).filter(routine => routine.active).map(routine => ['rehab','training'].includes(routine.kind) ? <a className="settings-row" key={routine.id} href={`#/train/${routinePlans(routine)[0] ?? ''}`}>{routine.name}</a> : <button className="settings-row" key={routine.id} onClick={() => { setMore(false); setLog(routine.kind as 'reading' | 'alcohol'); }}>{routine.name}</button>)}</div></Sheet>}
+    {more && <Sheet title="More" onClose={() => setMore(false)}><div className="settings-list"><a className="settings-row" href="#/train">Start workout</a><a className="settings-row" href="#/train/max-pull-left">Max pull test</a><button className="settings-row" onClick={() => { setMore(false); setLog('finger'); }}>Finger strength · 20 mm drag</button>{allRoutines(routines.data).filter(routine => routine.active).map(routine => ['rehab','training'].includes(routine.kind) ? <a className="settings-row" key={routine.id} href={`#/train/${routinePlans(routine)[0] ?? ''}`}>{routine.name}</a> : <button className="settings-row" key={routine.id} onClick={() => { setMore(false); setLog(routine.kind as 'reading' | 'alcohol'); }}>{routine.name}</button>)}</div></Sheet>}
     {log === 'reading' && routine && <ReadingSheet data={routines.data} routine={routine} date={localDate()} onChange={routines.update} onClose={() => setLog(null)} />}
     {log === 'alcohol' && routine && <AlcoholSheet data={routines.data} routine={routine} date={localDate()} onChange={routines.update} onClose={() => setLog(null)} />}
     {(log === 'reading' || log === 'alcohol') && !routine && <Sheet title={`Log ${log === 'reading' ? 'reading' : 'drinks'}`} onClose={() => setLog(null)}><p>Set up an active {log === 'reading' ? 'reading' : 'alcohol'} routine to use this log.</p><a className="primary-button" href="#/routines/new">Create routine</a></Sheet>}

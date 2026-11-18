@@ -13,7 +13,7 @@ const session = (id, date = '2026-11-01', data = config()) => {
 };
 const complete = (id, date = '2026-11-01') => {
   const s = session(id, date);
-  return { ...s, phase: 'review', finishedAt: s.startedAt, sets: Array.from({ length: s.preset.prescription.sets }, (_, i) => ({ set: i + 1, status: 'completed', source: 'manual', trace: [] })) };
+  return { ...s, phase: 'review', finishedAt: s.startedAt, sets: Array.from({ length: s.preset.prescription.sets }, (_, i) => ({ set: i + 1, status: 'completed', source: 'manual', reps: s.preset.prescription.reps, durationSeconds: s.preset.prescription.holdSeconds, trace: [] })) };
 };
 
 test('rehab validates real calendar dates and counts complete days across DST', () => {

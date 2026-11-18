@@ -4,8 +4,8 @@ export interface RepPrescription {
   kind: 'reps'; sets: number; reps: number; addedLoadKg: number; restSeconds: number;
 }
 export interface HoldPrescription {
-  kind: 'hold'; sets: number; hand: 'left' | 'right'; edgeMm: number; grip: string;
-  targetKg: number; toleranceKg: number; holdSeconds: number; restSeconds: number;
+  kind: 'hold'; sets: number; hand: 'left' | 'right' | 'both'; edgeMm: number; grip: string;
+  mode?: 'max'; targetKg: number; toleranceKg: number; holdSeconds: number; restSeconds: number;
 }
 export interface TimedPrescription { kind: 'timed'; sets: number; holdSeconds: number; restSeconds: number; selfPacedRest?: boolean }
 export interface PacedPrescription {
@@ -13,13 +13,14 @@ export interface PacedPrescription {
   steps: { label: string; seconds: number }[];
 }
 export type Prescription = RepPrescription | HoldPrescription | TimedPrescription | PacedPrescription;
-export interface Exercise { id: string; name: string; category: 'training' | 'rehab'; description: string; cue?: string }
+export interface Exercise { id: string; name: string; category: 'training' | 'rehab'; description: string; cue?: string; tags?: string[] }
 export interface WorkoutPreset {
   id: string; exerciseId: string; name: string; prescription: Prescription;
-  optional?: boolean; locked?: { label: string; note: string };
+  tags?: string[]; optional?: boolean; locked?: { label: string; note: string };
 }
-export interface WorkoutPlan { id: string; name: string; description: string; presetIds: string[]; featured?: boolean }
+export interface WorkoutPlan { id: string; name: string; description: string; presetIds: string[]; featured?: boolean; presets?: WorkoutPreset[]; exercises?: Exercise[]; tags?: string[] }
 export const exercises: Exercise[] = [
+  { id: 'max-pull', name: 'Max pull test', category: 'training', description: '20 mm edge · half crimp · 7-second peak force test' },
   { id: 'pull-ups', name: 'Pull-ups', category: 'training', description: 'Bodyweight pulling. Record the reps you actually do.' },
   { id: 'finger-drag', name: 'Finger rehab', category: 'rehab', description: 'Steady, controlled force on the edge.' },
   { id: 'glides', name: 'Tendon glides', category: 'rehab', description: 'Ring on · pain-free range', cue: 'Ring on. Stay inside a pain-free range.' },
@@ -28,6 +29,7 @@ export const exercises: Exercise[] = [
   { id: 'half-crimp', name: 'Half crimp', category: 'rehab', description: 'Left hand · 20 mm half crimp' },
 ];
 export const workoutPresets: WorkoutPreset[] = [
+  ...(['left', 'right'] as const).map(hand => ({ id: `max-pull-${hand}`, exerciseId: 'max-pull', name: `Max half crimp · ${hand}`, prescription: { kind: 'hold' as const, mode: 'max' as const, sets: 1, hand, edgeMm: 20, grip: 'half crimp', targetKg: 0, toleranceKg: 0, holdSeconds: 7, restSeconds: 0 } })),
   { id: 'pull-ups-3x5', exerciseId: 'pull-ups', name: 'Pull-ups', prescription: { kind: 'reps', sets: 3, reps: 5, addedLoadKg: 0, restSeconds: 90 } },
   { id: 'finger-rehab', exerciseId: 'finger-drag', name: 'Finger rehab', prescription: { kind: 'hold', sets: 6, hand: 'left', edgeMm: 20, grip: 'three-finger drag', targetKg: 10, toleranceKg: 1, holdSeconds: 15, restSeconds: 60 } },
   // Starting choices within the supplied ranges; loads and wrist reps are configured separately.
@@ -50,6 +52,7 @@ export const workoutPlans: WorkoutPlan[] = [
 ];
 export function resolvePreset(base: WorkoutPreset, data = loadRehab(), today?: string): WorkoutPreset {
   const preset = structuredClone(base);
+  if (!workoutPresets.some(item => item.id === base.id)) return preset;
   delete preset.locked;
   const p = preset.prescription;
   const phase = pulleyPhase(data, today);
@@ -79,7 +82,10 @@ export function resolvePreset(base: WorkoutPreset, data = loadRehab(), today?: s
   }
   return preset;
 }
-export const planPresets = (plan: WorkoutPlan, data?: RehabData, today?: string) => plan.presetIds.map(id => resolvePreset(workoutPresets.find(preset => preset.id === id)!, data, today));
+export const planPresets = (plan: WorkoutPlan, data?: RehabData, today?: string) => plan.presetIds.map(id => resolvePreset((plan.presets ?? []).find(preset => preset.id === id) ?? workoutPresets.find(preset => preset.id === id)!, data, today));
+export function planCategory(plan: WorkoutPlan): 'rehab' | 'training' {
+  return plan.presetIds.every(id => [...(plan.exercises ?? []),...exercises].find(exercise => exercise.id === ([...(plan.presets ?? []),...workoutPresets].find(preset => preset.id === id)?.exerciseId))?.category === 'rehab') ? 'rehab' : 'training';
+}
 export function rehabPlanNote(plan: WorkoutPlan, data = loadRehab(), today?: string) {
   if (plan.id === 'wrist-rehab') return `Phase ${wristPhase(data, today) || 'not set'} · 2–3 sessions per week · one exercise at a time`;
   if (plan.id !== 'pulley-rehab') return plan.description;
@@ -90,7 +96,7 @@ export function workSeconds(p: Prescription) {
   return p.kind === 'paced' ? p.reps * p.steps.reduce((sum, step) => sum + step.seconds, 0) : p.kind === 'reps' ? p.reps * 4 : p.holdSeconds;
 }
 export function workoutMinutes(plan: WorkoutPlan, presets = planPresets(plan)) {
-  return Math.round(presets.filter(preset => !preset.locked && !preset.optional).reduce((sum, { prescription: p }) => sum + 5 + p.sets * workSeconds(p) + (p.sets - 1) * p.restSeconds, 0) / 60);
+  return Math.round(presets.filter(preset => !preset.locked && !preset.optional).reduce((sum, { prescription: p }) => sum + 3 + p.sets * workSeconds(p) + (p.sets - 1) * p.restSeconds, 0) / 60);
 }
 export function prescriptionLabel(p: Prescription) {
   if (p.kind === 'reps') return `${p.sets} × ${p.reps} reps · ${p.addedLoadKg ? `+${p.addedLoadKg} kg` : 'bodyweight'}`;

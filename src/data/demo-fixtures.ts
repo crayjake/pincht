@@ -20,10 +20,10 @@ const text = (value: string): RichNode => ({ type: 'text', text: value });
 const pill = (id: string, label: string, category: Category): RichNode => ({ type: 'recordPill', attrs: { id, label, category } });
 const todayRecords: JournalRecord[] = [
   { id: 'sleep-15', kind: 'sleep', title: 'Last night’s sleep', metric: duration(asleepMinutes(todayNight)), meta: '', sleep: todayNight },
-  { id: 'sidepull', kind: 'climb', title: 'Sidepull Season', metric: 'sent · 6th go', meta: 'Font 7A · 6 attempts', note: 'Left heel up before the sidepull, hips in, then pull through. Stopped trying to match.' },
+  { id: 'sidepull', kind: 'climb', title: 'Sidepull Season', metric: '7A', meta: 'Boulder room', climbInfo: { type: 'boulder', where: 'Boulder room', notes: 'Left heel up before the sidepull, hips in, then pull through.' }, climb: { goes: 3, sendGo: 3 }, note: 'Stopped trying to match.' },
   { id: 'rehab-15', kind: 'rehab', title: 'Finger rehab', metric: '5 sets', meta: `Max hang · ${rehabLoads.at(-1)!.edgeMm} mm · +${rehabLoads.at(-1)!.kg} kg · 10 s`, note: 'Left ring finger quiet all session. Try +0.5 kg next week.' },
   { id: 'pull-ups', kind: 'training', title: 'Pull-ups', metric: '4 × 6', meta: '+10 kg · last set RPE 7' },
-  { id: 'christmas', kind: 'goal', title: 'Christmas goal', metric: '5 / 5', meta: 'All climbs sent · 40 days early', progress: { completed: 5, total: 5 } },
+  { id: 'christmas', kind: 'goal', title: 'Christmas goal', metric: '2 / 4', meta: 'Climbing projects', progress: { completed: 2, total: 4 }, climbGoal: { climbIds: ['sidepull', 'blue-slab', 'heel-hook', 'pinch-panic'] } },
 ];
 const routineSeeds: [number, DayType[], number, number, number, number][] = [
   [14, ['rehab'], 468, 72.1, 92, 110], [13, ['climb', 'training'], 453, 72.3, 88, 101],
@@ -35,33 +35,38 @@ const routineSeeds: [number, DayType[], number, number, number, number][] = [
 ];
 const sampleEntries: Record<number, Entry> = {
   13: { title: 'Stopped while the skin was good', body: { type: 'doc', content: [
-    { type: 'paragraph', content: [text('Kept the '), pill('climb-13', 'Boulder session', 'climb'), text(' short today. The steeper problems felt good, but the small holds were getting sore. Finished with '), pill('training-13', 'Core + shoulders', 'training'), text(' rather than squeezing in another climb.')] },
+    { type: 'paragraph', content: [text('Kept the attempts on '), pill('sidepull', 'Sidepull Season', 'climb'), text(' short today. The steeper problems felt good, but the small holds were getting sore. Finished with '), pill('training-13', 'Core + shoulders', 'training'), text(' rather than squeezing in another climb.')] },
   ] } },
   10: { title: 'Getting comfortable on the slabs', body: { type: 'doc', content: [
-    { type: 'paragraph', content: [text('Spent most of the '), pill('climb-10', 'Boulder session', 'climb'), text(' on balance and quiet feet. Repeating the easier problems helped more than chasing a harder grade.')] },
+    { type: 'paragraph', content: [text('Spent most of the session on '), pill('blue-slab', 'Blue slab', 'climb'), text(', practising balance and quiet feet. Repeating the easier problems helped more than chasing a harder grade.')] },
     { type: 'paragraph', content: [text('Try the same warm-up next time, then come back to the blue volume problem.')] },
   ] } },
   7: { title: 'A few good attempts', body: { type: 'doc', content: [
-    { type: 'paragraph', content: [text('No big sends in the '), pill('climb-7', 'Boulder session', 'climb'), text(', but the moves are starting to connect. Taking longer rests made the last attempts much better than the first.')] },
+    { type: 'paragraph', content: [text('No send on '), pill('heel-hook', 'Heel Hook Hell', 'climb'), text(', but the moves are starting to connect. Taking longer rests made the last attempts much better than the first.')] },
   ] } },
   4: { title: 'Back into the rhythm', body: { type: 'doc', content: [
-    { type: 'paragraph', content: [text('An easy '), pill('climb-4', 'Boulder session', 'climb'), text(' to get moving again, followed by '), pill('training-4', 'Core + shoulders', 'training'), text('. Fingers felt quiet throughout. Keep the next session at the same intensity.')] },
+    { type: 'paragraph', content: [text('A few attempts on '), pill('pinch-panic', 'Pinch Panic', 'climb'), text(' to get moving again, followed by '), pill('training-4', 'Core + shoulders', 'training'), text('. Fingers felt quiet throughout. Keep the next session at the same intensity.')] },
   ] } },
 };
 export const seedDays: Day[] = [{
   date: '2026-11-15', types: ['climb', 'rehab', 'training'], metrics: { sleep: asleepMinutes(todayNight), weight: 72.4 }, visibleMetrics: ['sleep', 'weight'],
   entry: { title: 'The high heel worked', body: { type: 'doc', content: [
-    { type: 'paragraph', content: [text('Finally stuck the last move on '), pill('sidepull', 'Sidepull Season', 'climb'), text('. That was the last climb on my '), pill('christmas', 'Christmas goal', 'goal'), text(' list.')] },
+    { type: 'paragraph', content: [text('Finally stuck the last move on '), pill('sidepull', 'Sidepull Season', 'climb'), text('. Another climb ticked off my '), pill('christmas', 'Christmas goal', 'goal'), text(' list.')] },
     { type: 'paragraph', content: [pill('rehab-15', 'Finger rehab', 'rehab'), text(' felt steady and I had plenty left for '), pill('pull-ups', 'Pull-ups', 'training'), text('. Felt better than I expected after '), pill('sleep-15', 'Last night’s sleep', 'sleep'), text('.')] },
   ] } }, records: todayRecords,
 }, ...routineSeeds.map(([day, types, sleep, weight, deep, rem]): Day => {
   const date = `2026-11-${String(day).padStart(2, '0')}`;
   const night = makeNight(date, sleep, deep, rem);
-  const records: JournalRecord[] = types.filter((type): type is Category => type !== 'rest').map(kind => ({
-    id: `${kind}-${day}`, kind, title: kind === 'rehab' ? 'Finger rehab' : kind === 'climb' ? 'Boulder session' : 'Core + shoulders',
-    metric: kind === 'rehab' ? '5 sets' : kind === 'climb' ? '11 problems' : '25 min',
-    meta: kind === 'rehab' ? 'Max hang · 20 mm · +21.5 kg · 10 s' : kind === 'climb' ? 'Top send Font 6C+ · 1h 40m' : 'L-sit · face pulls · RPE 6',
-    ...(day === 13 && kind === 'climb' ? { note: 'Skin gave out early, so I stopped before the crimpy problems.' } : {}),
+  const climbs: Record<number, JournalRecord> = {
+    13: { id: 'sidepull', kind: 'climb', title: 'Sidepull Season', metric: '7A', meta: 'Boulder room', climbInfo: { type: 'boulder', where: 'Boulder room', notes: 'Left heel up before the sidepull, hips in, then pull through.' }, climb: { goes: 3 } },
+    10: { id: 'blue-slab', kind: 'climb', title: 'Blue slab', metric: '5+', meta: 'Slab wall', climbInfo: { type: 'boulder', where: 'Slab wall' }, climb: { goes: 1, sendGo: 1 } },
+    7: { id: 'heel-hook', kind: 'climb', title: 'Heel Hook Hell', metric: '7A', meta: 'Boulder room', climbInfo: { type: 'boulder', where: 'Boulder room' }, climb: { goes: 4 } },
+    4: { id: 'pinch-panic', kind: 'climb', title: 'Pinch Panic', metric: '6C', meta: 'Slab wall', climbInfo: { type: 'boulder', where: 'Slab wall' }, climb: { goes: 4 } },
+  };
+  const records: JournalRecord[] = types.filter((type): type is Category => type !== 'rest').map(kind => kind === 'climb' ? { ...climbs[day] } : ({
+    id: `${kind}-${day}`, kind, title: kind === 'rehab' ? 'Finger rehab' : 'Core + shoulders',
+    metric: kind === 'rehab' ? '5 sets' : '25 min',
+    meta: kind === 'rehab' ? 'Max hang · 20 mm · +21.5 kg · 10 s' : 'L-sit · face pulls · RPE 6',
   }));
   records.push({ id: `sleep-${day}`, kind: 'sleep', title: 'Sleep', metric: duration(asleepMinutes(night), true), meta: '', sleep: night });
   return { date, types, metrics: { sleep: asleepMinutes(night), weight }, visibleMetrics: ['sleep', 'weight'], entry: sampleEntries[day], records };

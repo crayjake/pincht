@@ -111,8 +111,8 @@ test('search returns individual matching records/entries with category, date, an
   const data = seedRoutines(today);
   const days = withRoutineDays(seedDays, data, today);
   const results = searchJournal(days, data, 'sidepull', { ...emptyFilter, categories: ['climb'] });
-  assert.deepEqual(results.map(r => r.kind).sort(), ['entry', 'record']);
-  assert.ok(results.every(r => r.date === '2026-11-15'));
+  assert.deepEqual(results.map(r => r.kind).sort(), ['entry', 'entry', 'record', 'record']);
+  assert.deepEqual([...new Set(results.map(r => r.date))].sort(), ['2026-11-13', '2026-11-15']);
   const sleepResults = searchJournal(days, data, 'sidepull', { ...emptyFilter, categories: ['sleep'] });
   assert.ok(sleepResults.every(r => r.kind === 'entry'), 'category filters exclude unrelated records while retaining matching entries from that day');
   const missing = searchJournal(days, data, '', { ...emptyFilter, unlogged: true, from: '2026-11-10', to: '2026-11-15' });

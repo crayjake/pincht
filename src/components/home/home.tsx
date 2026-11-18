@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { DayPicker, EntryMenu, EntryTags, moveEntry } from './entry-tools';
 import { loadSessions } from '../../workouts/storage';
 import './home.scss';
 import { HomeFilters } from './home-filters';
@@ -13,7 +14,9 @@ import { PrimaryNav } from '../app-navigation';
 import { DueToday, HabitRows } from '../../routines/due-today';
 import { addDays, adherence, withRoutineDays, type Routine } from '../../routines/data';
 import { useRoutines } from '../../routines/use-routines';
-import { AlcoholSheet, ReadingSheet, WelcomeSheet } from '../../routines/routine-sheets';
+import { AlcoholSheet, BookSelector, ReadingSheet, WelcomeSheet } from '../../routines/routine-sheets';
+import { CreateThing } from './library-pages';
+import { planCategory } from '../../workouts/fixtures';
 import { dragLoads } from '../../routines/rehab-loads';
 import { JournalSearch } from './journal-search';
 import { daySummary, type SummaryCategory } from './journal-summary';
@@ -50,12 +53,19 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
   }, [baseDays, data, today]);
   const loads = useMemo(() => dragLoads(sessions), [sessions]);
   const [storageError, setStorageError] = useState('');
+  const [calendar, setCalendar] = useState<string | null>(null);
+  const [menuDay, setMenuDay] = useState<Day | null>(null);
+  const [tagDay, setTagDay] = useState<Day | null>(null);
+  const [undoEntry, setUndoEntry] = useState<{date:string;entry:Entry} | null>(null);
+  const [editorVersion, setEditorVersion] = useState(0);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [filter, setFilter] = useState(emptyFilter);
   const [filterOpen, setFilterOpen] = useState(false);
   const [detail, setDetail] = useState<PillResource | null>(null);
   const [routineDetail, setRoutineDetail] = useState<{ routine: Routine; date: string } | null>(null);
+  const [creation, setCreation] = useState<{ day: Day; title: string; kind: CreatableRecordKind; resolve: (record?: PillResource) => void } | null>(null);
+  const createdBook = useRef<JournalRecord | undefined>(undefined);
   const views = useMemo(() => loadViews(), []);
   const view = useMemo(() => screen === 'today' ? undefined : views.find(view => view.id === (viewId ?? (screen === 'climbing' ? 'climbing' : defaultView().id))) ?? climbingView, [screen, viewId, views]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -83,7 +93,7 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
   const screenTitle = screen === 'today' ? 'To-do' : view?.id === 'all' ? 'Journal' : view?.name ?? 'Journal';
   useEffect(() => { document.title = `${entryDate ? days.find(d => d.date === entryDate)?.entry?.title || 'Journal' : searchOpen ? 'Search' : screenTitle} · pincht`; }, [entryDate, searchOpen, days, screenTitle]);
   const resources = useMemo<PillResource[]>(() => [...new Map([...chartResources,
-    ...loadWorkoutPlans().map(plan => ({ id: `plan-${plan.id}`, kind: plan.id.includes('rehab') ? 'rehab' : 'training', title: plan.name, metric: 'Workout', meta: '' } as JournalRecord)),
+    ...loadWorkoutPlans().map(plan => ({ id: `plan-${plan.id}`, kind: planCategory(plan), title: plan.name, metric: 'Workout', meta: '' } as JournalRecord)),
     ...data.books.map(book => ({ id: `book-${book.id}`, kind: 'habit', title: book.title, metric: 'Book', meta: book.author } as JournalRecord)),
     ...createdResources, ...days.flatMap(day => day.records)].map(record => [record.id, record])).values()], [days, data.books, createdResources]);
   const viewDays = useMemo(() => view && !entryDate ? days.filter(day => day.date === today || isViewDay(day, view)) : days, [days, view, entryDate, today]);
@@ -107,13 +117,19 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
     });
   }
   function createRecord(day: Day, title: string, kind: CreatableRecordKind) {
-    const prefix = kind === 'habit' ? 'book' : kind;
-    const record: JournalRecord = { id: `${prefix}-${crypto.randomUUID()}`, kind, title, metric: kind === 'habit' ? 'Book' : kind === 'training' ? 'Workout' : '', meta: '', ...(kind === 'climb' ? { climb: { goes: 0 } } : {}) };
-    setCreatedResources(current => [...current, record]);
-    // Only climbs log activity through a mention. Other categories remain references.
-    if (kind === 'climb') updateRecord(day, record);
-    setExpanded(current => new Set([...current, day.date]));
-    return record;
+    createdBook.current = undefined;
+    return new Promise<PillResource | undefined>(resolve => setCreation({ day, title, kind, resolve }));
+  }
+  function finishCreation(record?: JournalRecord) {
+    if (!creation) return;
+    if (record) {
+      setCreatedResources(loadResources(resourcesKey));
+      // Only climbs log activity through a mention. Other categories remain references.
+      if (record.kind === 'climb') updateRecord(creation.day, { ...record, climb: { goes: 0 } });
+      setExpanded(current => new Set([...current, creation.day.date]));
+    }
+    creation.resolve(record);
+    setCreation(null);
   }
   function toggle(date: string) { setExpanded(current => { const next = new Set(current); if (next.has(date)) next.delete(date); else next.add(date); return next; }); }
   function openRoutine(routine: Routine, date: string) {
@@ -149,7 +165,11 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
             const { day } = group;
             const summaryItems = daySummary(day, data);
             const records = entryRecords(day, resources);
-            return <article className={`written-entry${!hasJournalContent(day.entry) ? ' empty-entry' : ''}${openComposers.has(day.date) ? ' composer-open' : ''}`} key={day.date} onFocusCapture={event => {
+            return <article className={`written-entry${!hasJournalContent(day.entry) ? ' empty-entry' : ''}${openComposers.has(day.date) ? ' composer-open' : ''}`} key={day.date} onContextMenu={event => {
+              if ((event.target as HTMLElement).closest('input, textarea, [contenteditable], button, a')) return;
+              event.preventDefault();
+              setMenuDay(day);
+            }} onFocusCapture={event => {
               if (!(event.target as HTMLElement).closest('.entry-title-input, .journal-body')) return;
               // Keep the composer open for this visit, so focusing a task or record
               // cannot move that control between pointer-down and click.
@@ -170,7 +190,7 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
                 })}
               </div>}
               {entryDate || day.date === today ? <input className="entry-title-input" aria-label="Journal title" placeholder="Journal title" value={day.entry!.title} onChange={event => updateEntry(day, { ...day.entry!, title: event.target.value })} /> : <h1><a href={`#/journal/${day.date}`}>{day.entry!.title || 'Untitled entry'}</a></h1>}
-              <JournalBody body={day.entry!.body} resources={resources} placeholder={day.date === today || entryDate ? 'Write about your day…' : undefined} onChange={body => updateEntry(day, { ...day.entry!, body })} onCreateRecord={(title, kind) => createRecord(day, title, kind)} onOpen={openRecord} />
+              <JournalBody key={`${day.date}-${editorVersion}`} body={day.entry!.body} resources={resources} placeholder={day.date === today || entryDate ? 'Write about your day…' : undefined} onChange={body => updateEntry(day, { ...day.entry!, body })} onCreateRecord={(title, kind) => createRecord(day, title, kind)} onOpen={openRecord} />
               {(entryDate || (screen === 'journal' && day.date !== today)) && <HabitRows data={data} date={day.date} recentSkips={recentSkips} onOpen={openRoutine} onChange={update} />}
               {entryDate ? <DayRecords records={records} onOpen={openRecord} editableIds={day.records.map(record => record.id)} onUpdate={record => updateRecord(day, record)} id={`records-${day.date}`} /> : <>
                 <button type="button" className="records-toggle" aria-expanded={expanded.has(day.date)} aria-controls={`records-${day.date}`} onClick={() => toggle(day.date)}><span className={`records-toggle-inner${!records.length ? ' records-empty' : ''}`}><span>{records.length} records</span><Icon name="chevron" size={16} /></span></button>
@@ -197,7 +217,20 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
       </main>
       {!entryDate && <PrimaryNav active="journal" />}
     </>}
+    {calendar !== null && <DayPicker days={days} initial={calendar || today} moving={!!calendar} onClose={() => setCalendar(null)} onChoose={date => {
+      if (!calendar) { setCalendar(null); location.hash = `/journal/${date}`; return; }
+      try { const next = moveEntry(baseDays, calendar, date); saveDays(next, storageKey); setDays(next); setCalendar(null); setEditorVersion(v=>v+1); location.hash = `/journal/${date}`; } catch(error) { setStorageError((error as Error).message); }
+    }} />}
+    {menuDay && <EntryMenu day={menuDay} onClose={()=>setMenuDay(null)} onEdit={()=>{const date=menuDay.date;setMenuDay(null);location.hash=`/journal/${date}`;}} onMove={()=>{setCalendar(menuDay.date);setMenuDay(null);}} onTags={()=>{setTagDay(menuDay);setMenuDay(null);}} onDelete={()=>{const entry=menuDay.entry;const date=menuDay.date;if(!entry)return;const next=baseDays.map(day=>day.date===date?{...day,entry:undefined}:day);try{saveDays(next,storageKey);setDays(next);setUndoEntry({date,entry});setMenuDay(null);setEditorVersion(v=>v+1);}catch(error){setStorageError((error as Error).message);}}} />}
+    {tagDay && <EntryTags entry={tagDay.entry ?? {title:'',body:emptyBody}} onClose={()=>setTagDay(null)} onSave={tags=>{updateEntry(tagDay,{...(tagDay.entry ?? {title:'',body:emptyBody}),tags});setTagDay(null);}} />}
+    {undoEntry && <div className="journal-toast" role="status">Entry deleted <button className="text-action" onClick={()=>{setDays(current=>current.map(day=>day.date===undoEntry.date?{...day,entry:undoEntry.entry}:day));setUndoEntry(null);setEditorVersion(v=>v+1);}}>Undo</button><button className="icon-button" aria-label="Dismiss" onClick={()=>setUndoEntry(null)}>×</button></div>}
     {filterOpen && <HomeFilters filter={filter} onChange={setFilter} onClose={() => setFilterOpen(false)} />}
+    {creation && (creation.kind === 'habit' ? <BookSelector initialTitle={creation.title} data={data} onClose={() => finishCreation()} onChange={next => {
+      if (!update(next)) return false;
+      const book = next.books.find(book => book.id === next.currentBookId);
+      createdBook.current = book ? { id: `book-${book.id}`, kind: 'habit', title: book.title, metric: 'Book', meta: book.author } : undefined;
+      return true;
+    }} onSelect={() => finishCreation(createdBook.current)} /> : <CreateThing fromEntry category={creation.kind === 'training' ? 'workouts' : creation.kind === 'climb' ? 'climbs' : 'goals'} initialTitle={creation.title} onCreated={finishCreation} onClose={() => finishCreation()} />)}
     {routineDetail && (routineDetail.routine.kind === 'reading' ? <ReadingSheet key={`${routineDetail.routine.id}-${routineDetail.date}`} data={data} routine={routineDetail.routine} date={routineDetail.date} onChange={update} onClose={() => setRoutineDetail(null)} /> : <AlcoholSheet key={`${routineDetail.routine.id}-${routineDetail.date}`} data={data} routine={routineDetail.routine} date={routineDetail.date} onChange={update} onClose={() => setRoutineDetail(null)} />)}
     {!entryDate && screen !== 'today' && routines.welcome && !routineDetail && <WelcomeSheet data={data} away={routines.away} onChange={update} onReview={openRoutine} onClose={routines.closeWelcome} />}
     {detail && <Sheet title={detail.title} development onClose={() => setDetail(null)}>{detail.kind === 'chart' ? detail.id === 'chart-rehab' ? <RehabChart loads={loads} /> : <SleepChart nights={getNights(days)} /> : <RecordItem record={detail} onOpen={() => {}} />}</Sheet>}

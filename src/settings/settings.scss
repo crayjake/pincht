@@ -1,0 +1,19 @@
+.settings-page {
+  > .settings-section { margin-top: 16px; > .eyebrow { margin: 0 4px 6px; font: 400 11px/16px var(--font-mono); letter-spacing: .06em; color: var(--color-text-muted); } }
+  > .settings-section:first-of-type { margin-top: 8px; }
+  .settings-list { border-radius: 20px; background: var(--color-surface); }
+  .settings-row { display: flex; align-items: center; gap: 0; width: 100%; min-height: 52px; padding: 0 8px 0 14px; border: 0; background: transparent; color: inherit; text-align: left;
+    & + .settings-row { border-top: 1px solid var(--color-border); }
+    > strong { flex: 1; min-width: 0; font: 600 16px/20px var(--font-sans); }
+    > .settings-value, > select, > input { flex: 0 1 auto; margin: 0 4px 0 8px; color: var(--color-text-muted); font: 400 12px/16px var(--font-mono); }
+    > select, > input { width: auto; max-width: 48%; height: 44px; min-width: 0; padding: 0; border: 0; background: transparent; text-align: right; appearance: none; cursor: pointer; }
+    > select { text-align-last: right; }
+    > input[type='time'] { width: 60px; &::-webkit-calendar-picker-indicator { display: none; } }
+    .export-formats { white-space: nowrap; .text-action { min-height: 44px; padding: 0 2px; color: var(--color-text-muted); font: inherit; } }
+  }
+  .settings-switch { display: flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; padding: 0; border: 0; background: transparent;
+    i { position: relative; display: block; width: 40px; height: 24px; border-radius: 12px; background: var(--color-border); &::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--color-surface); transition: transform 150ms ease; } }
+    &[aria-checked='true'] i { background: var(--color-text); &::after { transform: translateX(16px); background: var(--color-page); } }
+  }
+}
+@media (prefers-reduced-motion: reduce) { .settings-page .settings-switch i::after { transition: none; } }

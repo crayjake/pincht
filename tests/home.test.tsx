@@ -362,14 +362,13 @@ describe('Today and journal flows', () => {
     expect(screen.getByRole('button', { name: /Read\s*daily.*Piranesi.*p.128/ })).toBeTruthy();
   });
 
-  it('marks the additional book screen as in development and saves a newly selected book', async () => {
+  it('adds a book manually and uses it for the existing reading log', async () => {
     render(<Home screen="today" />);
     await click('Open Read'); await click('Change');
-    expect(screen.getByText('In development')).toBeTruthy();
-    expect(screen.getByText('Awaiting UI/UX pass')).toBeTruthy();
+    await click('Can’t find it? Add manually');
     await change('Title', 'A new book'); await change('Author', 'An author');
-    await change('Total pages', '300'); await change('Current page', '12');
-    await click('Add and select book');
+    await change('Total pages', '300'); await change('Currently on page', '12');
+    await click('Add to library');
     expect(screen.getByRole('heading', { name: 'Log reading' })).toBeTruthy();
     expect((screen.getByLabelText('Now on page') as HTMLInputElement).value).toBe('12');
     await click('Save reading');
@@ -402,8 +401,8 @@ describe('Today and journal flows', () => {
     expect(screen.queryByRole('button', { name: 'New entry' })).toBeNull();
     await change('Search journal', 'sidepull');
     await click('Climb');
-    expect(screen.getByRole('status').textContent).toBe('2 results · climb records and entries');
-    expect(screen.getByRole('button', { name: 'Sidepull Season' })).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toBe('4 results · climb records and entries');
+    expect(screen.getAllByRole('button', { name: 'Sidepull Season' })).toHaveLength(2);
     expect(screen.getByRole('link', { name: 'The high heel worked' }).getAttribute('href')).toBe('#/journal/2026-11-15');
     await click(/All filters/);
     expect(screen.getByText('Awaiting UI/UX pass')).toBeTruthy();
@@ -440,18 +439,18 @@ describe('Today and journal flows', () => {
     await click('Search journal');
     await change('Search journal', 'sidepull');
     await click('Journal entries only');
-    expect(screen.getByRole('status').textContent).toBe('1 result · journal entries');
+    expect(screen.getByRole('status').textContent).toBe('2 results · journal entries');
     expect(screen.queryByRole('button', { name: 'Sidepull Season' })).toBeNull();
     expect(screen.getByRole('link', { name: 'The high heel worked' })).toBeTruthy();
     await click('Climb');
-    expect(screen.getByRole('status').textContent).toBe('1 result · journal entries');
+    expect(screen.getByRole('status').textContent).toBe('2 results · journal entries');
     await click(/All filters/);
     expect((screen.getByRole('checkbox', { name: 'Journal entries only' }) as HTMLInputElement).checked).toBe(true);
     await change('From', '2026-11-16'); await click('Show results');
     expect(screen.getByRole('status').textContent).toBe('0 results · journal entries');
     await click(/All filters/); await click('Reset filters'); await click('Show results');
     expect(screen.getByRole('button', { name: 'Journal entries only' }).getAttribute('aria-pressed')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Sidepull Season' })).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Sidepull Season' })).toHaveLength(2);
   });
 
   it('routes to an expanded entry with all records and no bottom navigation or new-entry button', async () => {
@@ -468,9 +467,9 @@ describe('Today and journal flows', () => {
     expect(document.querySelectorAll('.day-record')).toHaveLength(6);
   });
 
-  it('keeps additional destinations visibly in development', () => {
+  it('opens the implemented climb library and keeps unimplemented metrics visibly in development', () => {
     const { rerender } = render(<LibraryPage category="climbs" onDataMode={vi.fn()} />);
-    expect(screen.getByText('Awaiting UI/UX pass')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Climbs' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Library' }).getAttribute('aria-current')).toBe('page');
     rerender(<LibraryPage category="metrics" onDataMode={vi.fn()} />);
     expect(screen.getByText('In development')).toBeTruthy();

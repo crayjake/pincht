@@ -1,5 +1,9 @@
 import { localDate } from '../components/home/journal-data.ts';
 import type { Session } from '../workouts/session.ts';
+import { isExerciseComplete } from '../workouts/completion.ts';
+import { dataKey } from '../data/mode.ts';
+import { readStored } from '../data/storage.ts';
+import { isRoutineData } from '../data/validation.ts';
 
 export interface RehabData {
   pulleyStart: string; wristStart: string; wristEccentricWeeks: 2 | 3 | null;
@@ -28,8 +32,20 @@ export function validateRehab(data: RehabData) {
     && Number.isFinite(data.dragKg) && data.dragKg >= 0 && [15, 20].includes(data.dragSeconds);
 }
 // Personal workout prescription dates, alongside the existing editable presets.
-export const personalRehab: RehabData = { ...emptyRehab(), pulleyStart: '2026-11-13', wristStart: '2026-11-16', wristIsometricReps: 10 };
-export function loadRehab(): RehabData { return structuredClone(personalRehab); }
+export const personalRehab: RehabData = { ...emptyRehab(), pulleyStart: '2026-11-13', wristStart: '2026-11-16', wristIsometricReps: 10, wristEccentricWeeks: 2, halfCrimpKg: 10 };
+export function loadRehab(store: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage): RehabData {
+  const data = structuredClone(personalRehab);
+  // The existing routine editor owns the start dates. No separate rehab clock.
+  if (store) {
+    const saved = readStored(dataKey('pincht.routines.live', store), null, (value): value is import('../routines/data.ts').RoutineData | null => value === null || isRoutineData(value), store);
+    for (const routine of saved?.routines ?? []) {
+      if (!validDate(routine.start)) continue;
+      if (routine.planSchedule === 'pulley') data.pulleyStart = routine.start;
+      if (routine.planSchedule === 'wrist') data.wristStart = routine.start;
+    }
+  }
+  return data;
+}
 export function pulleyPhase(data: RehabData, today = localDate()) {
   const day = elapsedDays(data.pulleyStart, today);
   return day === null || day < 0 ? 0 : day < 14 ? 1 : day < 28 ? 2 : 3;
@@ -50,8 +66,7 @@ function exercisesIn(sessions: Session[]) {
 export function completedExercise(sessions: Session[], id: string, from: string, through = from) {
   return exercisesIn(sessions).filter(s => {
     const date = localDate(new Date(s.startedAt));
-    return date >= from && date <= through && s.preset.id === id && s.sets.length >= s.preset.prescription.sets
-      && s.sets.every(set => set.status === 'completed');
+    return date >= from && date <= through && s.preset.id === id && isExerciseComplete(s);
   }).length;
 }
 export function rehabTasks(data: RehabData, sessions: Session[], today = localDate()) {
@@ -62,7 +77,8 @@ export function rehabTasks(data: RehabData, sessions: Session[], today = localDa
     tasks.push({ id: 'pulley', title: 'Pulley rehab', detail: `${count} of 2–3 sessions today · glides and mug grips`, href: '#/train/pulley-rehab', done: count >= 2 });
   } else if (pulleyLoadingDay(data, today)) {
     const drag = completedExercise(sessions, 'three-finger-drag', today) + completedExercise(sessions, 'finger-rehab', today);
-    tasks.push({ id: 'pulley', title: 'Pulley loading', detail: 'Alternate days · 3-finger drag' + (phase === 3 ? ' · half crimp available' : ''), href: '#/train/pulley-rehab', done: drag > 0 });
+    const half = phase === 3 ? completedExercise(sessions, 'half-crimp', today) : drag;
+    tasks.push({ id: 'pulley', title: 'Pulley loading', detail: 'Alternate days · 3-finger drag' + (phase === 3 ? ' · half crimp available' : ''), href: '#/train/pulley-rehab', done: drag > 0 && half > 0 });
   }
   if (wristPhase(data, today)) {
     const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7);

@@ -6,7 +6,7 @@ import { loadSessions, saveSession, mergeWorkoutDays, SESSION_KEY, SIMULATOR_KEY
 
 const epoch = Date.parse('2026-11-15T12:00:00Z');
 const make = (kind = 'hold', source = 'tindeq') => {
-  const preset = workoutPresets.find(p => p.prescription.kind === kind);
+  const preset = workoutPresets.find(p => p.prescription.kind === kind && (kind !== 'hold' || p.id === 'finger-rehab'));
   return createSession(preset, exercises.find(e => e.id === preset.exerciseId), source, epoch);
 };
 const start = s => reduce(s, { type: 'start', now: epoch });
@@ -113,6 +113,29 @@ test('disconnect and background interrupts cannot be kept; retry uses a fresh tr
     assert.equal(s.currentSet, 1); assert.equal(s.firstDeviceUs, undefined);
     assert.deepEqual(s.trace, []);
   }
+});
+
+test('retry after a background pause clears the old pause and restarts the preparation timer', () => {
+  let s = start(make('timed', 'manual'));
+  s = reduce(s, { type: 'pause', now: epoch + 500 });
+  s = reduce(s, { type: 'interrupt', now: epoch + 500, reason: 'Backgrounded' });
+  s = reduce(s, { type: 'retry' });
+  assert.equal(s.pausedAt, undefined);
+  s = reduce(s, { type: 'prepare', now: epoch + 1000 });
+  s = reduce(s, { type: 'tick', now: epoch + 4000 });
+  assert.equal(s.phase, 'holding');
+  assert.equal(s.holdStartedAt, epoch + 4000);
+});
+
+test('max pulls retain peak force separately from their average', () => {
+  const preset = workoutPresets.find(p => p.id === 'max-pull-left');
+  let s = start(createSession(preset, exercises.find(e => e.id === preset.exerciseId), 'tindeq', epoch));
+  for (let second = 0; second <= 7; second++) s = sample(s, second, second === 3 ? 42 : 20);
+  assert.equal(s.candidate.status, 'completed');
+  assert.equal(s.candidate.peakKg, 42);
+  assert.equal(s.candidate.meanKg, 22.75);
+  s = reduce(s, { type: 'keep', now: epoch + 7000 });
+  assert.equal(s.sets[0].peakKg, 42);
 });
 
 test('duplicate and out-of-order timestamps are ignored; uint32 microsecond rollover is handled', () => {

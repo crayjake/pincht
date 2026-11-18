@@ -3,13 +3,17 @@ import { loadSessions } from '../../workouts/storage';
 import { entryRecords, type Day, type JournalRecord, type PillResource } from './journal-data';
 import { loadDays, loadResources } from './journal-storage';
 import type { RoutineData } from '../../routines/data';
+import { planCategory } from '../../workouts/fixtures';
+import { directDragSeriesId } from '../../workouts/measurements';
+import { projectGoalProgress } from '../../goals/progress';
+import { isClimbResource } from '../../climbs/data';
 
 export type LibraryCategory = 'climbs' | 'workouts' | 'books' | 'goals' | 'routines' | 'views';
 export const libraryCategories: LibraryCategory[] = ['climbs', 'workouts', 'books', 'goals', 'routines', 'views'];
 export const categoryName = (category: string) => category[0].toUpperCase() + category.slice(1);
-export function recordHref(record: PillResource): string {
+export function recordHref(record: PillResource, seriesId = directDragSeriesId): string {
   const id = encodeURIComponent(record.id);
-  if (record.id.startsWith('measurement-finger-')) return '#/library/metrics/rehab';
+  if (record.id.startsWith('measurement-finger-')) return `#/library/metrics/rehab?series=${encodeURIComponent(seriesId)}`;
   if (record.kind === 'sleep') return '#/library/metrics/sleep';
   if (record.kind === 'chart') return `#/library/metrics/${record.category}`;
   if (record.id.startsWith('plan-')) return `#/library/workouts/${id}`;
@@ -26,10 +30,10 @@ export function recordHref(record: PillResource): string {
   return `#/library/${record.kind === 'climb' ? 'climbs' : record.kind === 'goal' ? 'goals' : record.kind === 'habit' ? 'books' : 'workouts'}/${id}`;
 }
 export function libraryResources(data: RoutineData): JournalRecord[] {
-  const records = new Map([...loadDays().flatMap(day => day.records), ...loadResources()].filter(record => !record.id.startsWith('routine-')).map(record => [record.id, record]));
-  for (const plan of loadWorkoutPlans()) records.set(`plan-${plan.id}`, { id: `plan-${plan.id}`, title: plan.name, kind: plan.id.includes('rehab') ? 'rehab' : 'training', metric: 'Workout', meta: plan.description });
+  const records = new Map([...loadDays().flatMap(day => day.records), ...loadResources()].filter(record => !record.id.startsWith('routine-') && (record.kind !== 'climb' || isClimbResource(record))).map(record => [record.id, record]));
+  for (const plan of loadWorkoutPlans()) records.set(`plan-${plan.id}`, { id: `plan-${plan.id}`, title: plan.name, kind: planCategory(plan), metric: 'Workout', meta: plan.description });
   for (const book of data.books) records.set(`book-${book.id}`, { id: `book-${book.id}`, title: book.title, kind: 'habit', metric: 'Book', meta: book.author });
-  return [...records.values()];
+  return projectGoalProgress([...records.values()], loadDays());
 }
 export function recordHistory(record: JournalRecord, days: Day[], resources: JournalRecord[]) {
   const planId = record.id.startsWith('plan-') ? record.id.slice(5) : undefined;

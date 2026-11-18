@@ -22,6 +22,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>pincht uses your camera to scan book ISBN barcodes.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>pincht connects to your Tindeq Progressor to record force during workout holds.</string>
 	<key>LSRequiresIPhoneOS</key>

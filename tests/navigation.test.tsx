@@ -4,13 +4,14 @@ import App from '../src/App';
 import { seedRoutines } from './fixtures/journal';
 import { ROUTINES_KEY } from '../src/routines/data';
 import { DATA_MODE_KEY } from '../src/data/mode';
-import { loadDays } from '../src/components/home/journal-storage';
+import { loadDays, loadResources, saveResources } from '../src/components/home/journal-storage';
 import { loadViews } from '../src/components/home/journal-views';
 import { loadWorkoutPlans } from '../src/workouts/catalog';
 import { clearWorkoutDraft, loadWorkoutDraft, restoredSession, saveWorkoutDraft } from '../src/workouts/draft';
 import { createSession, sessionReducer } from '../src/workouts/session';
 import { exercises, workoutPresets } from '../src/workouts/fixtures';
 import { saveSession } from '../src/workouts/storage';
+import { saveClimb, saveClimbSession, climbStats } from '../src/climbs/data';
 
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-16T12:00:00Z'));
@@ -57,21 +58,49 @@ it('edits a held view pill and uses its saved default on returning to Journal', 
   await navigate('do'); await navigate('journal');
   expect(screen.getByRole('main', { name: 'Reading' })).toBeTruthy();
 });
+it.each([
+  ['journal', 'All', 'Edit view'],
+  ['journal', 'New view', 'New view'],
+  ['view/reading', 'Reading', 'Edit view'],
+  ['view/reading', 'New view', 'New view'],
+  ['library/views', /\+ New\s*views/, 'New view'],
+  ['library/views/reading', 'Edit view', 'Edit view'],
+  ['views', 'Add view', 'New view'],
+])('cancels view editing back to %s from %s without saving', async (origin, action, heading) => {
+  render(<App />); await navigate(origin);
+  const before = loadViews();
+  const link = screen.queryByRole('link', { name: action, exact: true });
+  if (link) {
+    const href = link.getAttribute('href')!;
+    expect(href).toContain('/views/edit/');
+    await navigate(href.slice(2));
+  } else {
+    await click(action);
+    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+  }
+  expect(screen.getByRole('heading', { name: heading })).toBeTruthy();
+  await change('View name', 'Unsaved view change');
+  const cancel = screen.getByRole('link', { name: 'Cancel' });
+  expect(cancel.getAttribute('href')).toBe(`#/${origin}`);
+  await navigate(cancel.getAttribute('href')!.slice(2));
+  expect(screen.queryByRole('heading', { name: heading })).toBeNull();
+  expect(loadViews()).toEqual(before);
+});
 it('writes Do weigh-ins and climb logs into today and preserves the original send go', async () => {
   render(<App />); await navigate('do');
   await click('Weight'); await change('Weight · kg', '73.2'); await click('Save weigh-in');
-  await click('Climb'); await change('Name', 'Green slab'); await change('Grade', 'V3');
-  await change('Goes today', '2'); await act(async () => { fireEvent.click(screen.getByRole('checkbox', { name: 'Sent it' })); }); await click('Save climb');
-  await click('Climb'); await change('Goes today', '4'); await click('Save climb');
+  await click('Climb'); await click('+ Create new climb'); await change('Name', 'Green slab'); await change('Grade', 'V3'); await click('Create climb');
+  await click('More goes for Green slab'); await click('Sent'); await click('Save session');
+  await click('Climb'); await click(/Green slab/); await click('More goes for Green slab'); await click('More goes for Green slab'); await click('Save session');
   expect(loadDays().find(day => day.date === '2026-11-16')?.records[0].climb).toEqual({ goes: 4, sendGo: 2 });
   await navigate('journal');
   const today = within(screen.getByLabelText('Journal title').closest('article')!);
   expect(today.getByRole('link', { name: '73.2 kg' })).toBeTruthy();
   await click('1 records', today);
   expect(today.getByRole('link', { name: 'Green slab' })).toBeTruthy();
-  await navigate('library/climbs'); await change('Search Library', 'green');
+  await navigate('library/climbs'); await click('All'); await change('Search Library', 'green');
   expect(screen.getByRole('link', { name: /Green slab/ })).toBeTruthy();
-  await change('Search Library', 'nonexistent'); expect(screen.getByText('No matches.')).toBeTruthy();
+  await change('Search Library', 'nonexistent'); expect(screen.getByText('No matching climbs.')).toBeTruthy();
 });
 it('logs and edits sleep as the daily metric without creating a synthetic sleep record', async () => {
   render(<App />); await navigate('do');
@@ -86,6 +115,30 @@ it('logs and edits sleep as the daily metric without creating a synthetic sleep 
   await change('Minutes', '45'); await click('Save sleep'); await navigate('journal');
   const today = within(screen.getByLabelText('Journal title').closest('article')!);
   expect(today.getByRole('link', { name: 'sleep 7h 45m' }).getAttribute('href')).toBe('#/library/metrics/sleep');
+});
+it('filters climb projects and sends, shows cumulative send attempts, and saves beta without changing session notes', async () => {
+  const slab = { id: 'slab', kind: 'climb' as const, title: 'Blue slab', metric: '6A', meta: 'Gym', climbInfo: { type: 'boulder' as const, where: 'Gym' } };
+  saveClimb(slab);
+  saveClimb({ ...slab, id: 'roof', title: 'Roof project', metric: '7A' });
+  saveClimbSession('2026-11-14', [{ ...slab, note: 'First session note', climb: { goes: 3 } }]);
+  saveClimbSession('2026-11-16', [{ ...slab, climb: { goes: 4, sendGo: 2 } }]);
+  saveResources([...loadResources(), { id: 'goal', kind: 'goal', title: 'Winter projects', metric: '', meta: '', climbGoal: { climbIds: ['slab', 'roof'] } }]);
+  expect(climbStats('slab').sendGo).toBe(5);
+  render(<App />); await navigate('library/climbs');
+  expect(screen.getByRole('link', { name: /Roof project/ })).toBeTruthy();
+  expect(screen.queryByRole('link', { name: /Blue slab/ })).toBeNull();
+  await click('Sent');
+  expect(screen.getByRole('link', { name: /Blue slab/ })).toBeTruthy();
+  await change('Grade', '7A'); expect(screen.getByText('No climbs here yet.')).toBeTruthy();
+  await change('Grade', ''); await change('Where', 'Gym'); await change('Type', 'boulder');
+  await navigate('library/climbs/slab');
+  expect(screen.getByText('on the 5th go')).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Winter projects' }).getAttribute('href')).toBe('#/library/goals/goal');
+  await change('Climb notes', 'Keep the heel high');
+  await act(async () => { fireEvent.blur(screen.getByLabelText('Climb notes')); });
+  await navigate('library/climbs'); await navigate('library/climbs/slab');
+  expect((screen.getByLabelText('Climb notes') as HTMLTextAreaElement).value).toBe('Keep the heel high');
+  expect(loadDays().find(day => day.date === '2026-11-14')?.records[0].note).toBe('First session note');
 });
 it('shows Library category totals for workout plans, searches them, and offers existing create flows', async () => {
   render(<App />); await navigate('library');
@@ -103,8 +156,7 @@ it('shows Library category totals for workout plans, searches them, and offers e
 it('creates a workout from existing exercises in Library and offers it in Do', async () => {
   render(<App />); await navigate('library/workouts/new');
   await change('Name', 'My pull session');
-  await act(async () => { fireEvent.click(within(screen.getByRole('dialog', { name: 'New workout' })).getByRole('checkbox', { name: /Pull-ups/ })); });
-  await click('Create workout');
+  await click('+ Add exercise'); await click(/Pull-ups/); await click('Done'); await click('Save workout');
   await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
   const plan = loadWorkoutPlans().find(plan => plan.name === 'My pull session')!;
   expect(plan.presetIds).toEqual(['pull-ups-3x5']);

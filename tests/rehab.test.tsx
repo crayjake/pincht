@@ -33,11 +33,12 @@ it('uses existing workout links with empty history and no rehab setup or care fl
   expect(JSON.parse(localStorage.getItem(JOURNAL_KEY)!)).toEqual([]);
   expect(localStorage.getItem(SESSION_KEY)).toBeNull();
   await click('Complete Read for today');
-  expect(screen.getByRole('heading', { name: 'Your books' })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Add book' })).toBeTruthy();
   expect(localStorage.getItem(ROUTINES_KEY)).toBeNull();
+  await click('Can’t find it? Add manually');
   change('Title', 'My actual book');
   change('Total pages', '200');
-  await click('Add and select book');
+  await click('Add to library');
   change('Now on page', '12');
   await click('Save reading');
   const stored = JSON.parse(localStorage.getItem(ROUTINES_KEY)!);
@@ -77,7 +78,7 @@ it('runs only eccentrics during phase 2 and waits for the other hand to return t
   expect(screen.getByRole('timer', { name: 'Exercise remaining' }).textContent).toBe(before);
   await click('Weight returned · next rep');
   await click('Pause');
-  expect(screen.getByRole('button', { name: 'Resume' })).toBeTruthy();
+  expect(within(screen.getByRole('dialog', { name: 'Workout paused' })).getByRole('button', { name: 'Resume' })).toBeTruthy();
 });
 
 it('refreshes the phase and Today tasks when returning after midnight', () => {

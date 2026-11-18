@@ -54,14 +54,14 @@ export function ClimbingWidgets({ days, data, loads }: { days: Day[]; data: Rout
     <Widget title="Climbing" category="climb" headline={<><span>{count}</span><small>{count === 1 ? 'day' : 'days'}</small></>} subline="last seven days"><ActivityStrip week={week} /></Widget>
   </div>;
 }
-export function RehabChart({ loads = [] }: { loads?: RehabLoad[] }) {
-  if (!loads.length) return <p className="widget-subline">No drag measurements yet.</p>;
+export function RehabChart({ loads = [], label = '20 mm drag' }: { loads?: Pick<RehabLoad, 'date' | 'kg'>[]; label?: string }) {
+  if (!loads.length) return <p className="widget-subline">No {label === '20 mm drag' ? 'drag' : label} measurements yet.</p>;
   const values = loads.map(load => load.kg);
   const min = Math.min(...values) - 1.4;
   const max = Math.max(...values) + 1.4;
   const points = loads.map((load, i) => [3 + i / Math.max(1, loads.length - 1) * 129, 56 - (load.kg - min) / (max - min) * 56]);
   const last = points.at(-1)!;
-  return <svg viewBox="0 0 137 56" width="137" height="56" role="img" aria-label={`20 mm drag measurements, from ${values[0]} kg to ${values.at(-1)} kg`} className="rehab-chart">
+  return <svg viewBox="0 0 137 56" width="137" height="56" role="img" aria-label={`${label} measurements, from ${values[0]} kg to ${values.at(-1)} kg`} className="rehab-chart">
     <path d={`M${points.map(p => p.join(' ')).join(' L')} L132 56 L3 56 Z`} fill="var(--color-rehab-bg)" />
     <polyline points={points.map(p => p.join(',')).join(' ')} fill="none" stroke="var(--color-rehab-fg)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
     <circle cx={last[0]} cy={last[1]} r="3.5" fill="var(--color-rehab-fg)" stroke="var(--color-surface)" strokeWidth="2" />
