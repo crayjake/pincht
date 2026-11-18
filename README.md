@@ -11,6 +11,16 @@ npm test
 npm run build
 ```
 
+## GitHub Pages
+
+With **Settings → Pages → Source** set to **GitHub Actions**, pushing to `main` automatically builds and deploys the app to <https://crayjake.github.io/pincht/>. Deployment progress is shown in the repository's **Actions** tab; the workflow can also be run manually there.
+
+The workflow runs `npm ci` and `npm run build:pages`, then publishes `dist`. The Pages build uses `/pincht/` for asset paths. The manifest uses relative URLs so adding the site to the phone's Home Screen opens the app under that path. Navigation uses URL hashes, so journal and detail links do not need server rewrites.
+
+For a local Pages-build preview, run `npm run build:pages` followed by `npm run preview -- --base=/pincht/`, then open the printed `/pincht/` address. Normal `npm run build` and `npm run ios:sync` retain the root asset paths used by the iOS app.
+
+## Development
+
 Open an existing workout from Today or Train. The personal pulley plan starts on 13 November 2026 (injury on 4 November); wrist rehab starts on 16 November 2026. No separate onboarding, advice screen, or care tracker is included.
 
 ## Personal rehab plans

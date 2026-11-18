@@ -1,10 +1,10 @@
 {
   "name": "pincht",
   "short_name": "pincht",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "icons": [
-    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:pages": "npm run build -- --base=/pincht/",
     "lint": "oxlint",
     "test": "node --test --test-isolation=none tests/*.test.mjs && vitest run",
     "ios:sync": "npm run build && cap sync ios",
