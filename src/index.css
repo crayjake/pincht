@@ -19,3 +19,16 @@ body {
 #root {
   min-height: 100svh;
 }
+
+/* Give iOS an opaque, viewport-fixed status-bar background on every screen,
+   including screens whose heading scrolls. This adds no content spacing. */
+.app-status-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: max(1px, env(safe-area-inset-top, 0px));
+  z-index: 20;
+  background: var(--color-page);
+  pointer-events: none;
+}

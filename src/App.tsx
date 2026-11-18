@@ -24,7 +24,7 @@ export default function App() {
     try { selectDataMode(next); setMode(next); setSetup(needsSetup()); setError(''); window.scrollTo(0, 0); }
     catch { setError('Could not switch data mode. Your stored data has not been cleared.'); }
   }
-  return <>{(error || readError) && <p role="alert">{error || readError}</p>}{setup ? <FirstRun onDone={() => setSetup(false)} /> : <AppRoutes key={mode} onDataMode={changeMode} />}</>;
+  return <><div className="app-status-bar" aria-hidden="true" />{(error || readError) && <p role="alert">{error || readError}</p>}{setup ? <FirstRun onDone={() => setSetup(false)} /> : <AppRoutes key={mode} onDataMode={changeMode} />}</>;
 }
 
 function AppRoutes({ onDataMode }: { onDataMode: (mode: DataMode) => void }) {

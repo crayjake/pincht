@@ -41,6 +41,18 @@ it('keeps the typing toolbar closed when a scroll gesture starts over an entry, 
   expect(toolbar.getAttribute('data-visible')).toBe('true');
 });
 
+it('reopens the toolbar on a tap when an outside dismissal left the editor focused', async () => {
+  const { body, toolbar } = setup();
+  await act(async () => { body.focus(); });
+  await act(async () => { fireEvent.pointerDown(document.body); });
+  expect(document.activeElement).toBe(body);
+  expect(toolbar.getAttribute('data-visible')).toBe('false');
+  await act(async () => { fireEvent.pointerDown(body); fireEvent.pointerCancel(body); });
+  expect(toolbar.getAttribute('data-visible')).toBe('false');
+  await act(async () => { fireEvent.click(body); });
+  expect(toolbar.getAttribute('data-visible')).toBe('true');
+});
+
 it('links a record from the first toolbar button at the caret without duplicating an open mention', async () => {
   const { body, editor, toolbar } = setup();
   await act(async () => { body.focus(); editor.commands.insertContent('Tried'); });
@@ -80,34 +92,33 @@ it('dismisses the picker on title focus and outside taps, while allowing picker 
 });
 
 it('updates the shared picker and toolbar boundary as the keyboard opens, pans, and closes', async () => {
-  const viewport = Object.assign(new EventTarget(), { height: 844, offsetTop: 0 });
+  const viewport = Object.assign(new EventTarget(), { height: 844, offsetTop: 0, pageTop: 0 });
   vi.stubGlobal('visualViewport', viewport);
   vi.stubGlobal('innerHeight', 844);
-  const { body, editor } = setup();
-  const root = body.closest('.journal-body') as HTMLElement;
-  const probe = root.querySelector('.viewport-bottom-probe')!;
-  let fixedBottom = 844;
-  vi.spyOn(probe, 'getBoundingClientRect').mockImplementation(() => ({ bottom: fixedBottom }) as DOMRect);
+  const { body, editor, toolbar } = setup();
+  const root = toolbar.closest('.journal-controls') as HTMLElement;
   await act(async () => { body.focus(); editor.commands.insertContent('@'); });
   expect(root.contains(screen.getByRole('dialog'))).toBe(true);
   expect(root.contains(screen.getByRole('toolbar'))).toBe(true);
-  expect(root.style.getPropertyValue('--keyboard-height')).toBe('0px');
+  expect(body.closest('.journal-body')!.contains(root)).toBe(false);
+  expect(document.body.contains(root)).toBe(true);
+  expect(root.style.getPropertyValue('--journal-viewport-bottom')).toBe('844px');
   viewport.height = 430;
   await act(async () => { viewport.dispatchEvent(new Event('resize')); });
-  expect(root.style.getPropertyValue('--keyboard-height')).toBe('414px');
+  expect(root.style.getPropertyValue('--journal-viewport-bottom')).toBe('430px');
   expect(root.style.getPropertyValue('--journal-viewport-height')).toBe('430px');
   expect(root.style.getPropertyValue('--journal-controls-gap')).toBe('8px');
   viewport.offsetTop = 60;
+  viewport.pageTop = 460;
   await act(async () => { viewport.dispatchEvent(new Event('scroll')); });
-  expect(root.style.getPropertyValue('--keyboard-height')).toBe('354px');
-  // Some Safari viewport states already move fixed elements above the keyboard.
-  fixedBottom = 490;
+  expect(root.style.getPropertyValue('--journal-viewport-bottom')).toBe('890px');
+  // A layout viewport resize must not subtract the keyboard a second time.
+  vi.stubGlobal('innerHeight', 430);
   await act(async () => { viewport.dispatchEvent(new Event('resize')); });
-  expect(root.style.getPropertyValue('--keyboard-height')).toBe('0px');
+  expect(root.style.getPropertyValue('--journal-viewport-bottom')).toBe('890px');
   expect(root.style.getPropertyValue('--journal-controls-gap')).toBe('8px');
-  viewport.height = 844; viewport.offsetTop = 0;
-  fixedBottom = 844;
+  viewport.height = 844; viewport.offsetTop = 0; viewport.pageTop = 400;
   await act(async () => { viewport.dispatchEvent(new Event('resize')); });
-  expect(root.style.getPropertyValue('--keyboard-height')).toBe('0px');
+  expect(root.style.getPropertyValue('--journal-viewport-bottom')).toBe('1244px');
   expect(root.style.getPropertyValue('--journal-controls-gap')).toBe('var(--journal-dock-bottom)');
 });

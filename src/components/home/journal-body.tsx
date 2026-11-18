@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Node, Extension, mergeAttributes, type JSONContent, type Range } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -34,8 +35,7 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
   const [highlight, setHighlight] = useState(0);
   const [active, setActive] = useState(false);
   const container = useRef<HTMLDivElement>(null);
-  const viewportBottom = useRef<HTMLSpanElement>(null);
-  const interactions = useRef(new WeakSet<Event>());
+  const controls = useRef<HTMLDivElement>(null);
   const callbacks = useRef({ onChange, onOpen, resources });
   useEffect(() => { callbacks.current = { onChange, onOpen, resources }; }, [onChange, onOpen, resources]);
   const chooseRef = useRef<(index: number) => void>(() => {});
@@ -142,7 +142,9 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
       setSlash(null);
     };
     const outside = (event: Event) => {
-      if (!interactions.current.has(event)) dismiss();
+      const target = event.target;
+      if (target instanceof globalThis.Node && (container.current?.contains(target) || controls.current?.contains(target))) return;
+      dismiss();
     };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('focusin', outside);
@@ -155,24 +157,29 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
   }, [editor, slashKey]);
   useEffect(() => {
     const viewport = window.visualViewport;
-    const fullHeight = Math.max(window.innerHeight, viewport?.height ?? 0);
+    let fullHeight = Math.max(window.innerHeight, viewport?.height ?? 0);
     const position = () => {
-      // Measure where fixed positioning actually ends. Safari can resize that
-      // boundary itself; subtracting the keyboard from innerHeight then doubles it.
-      const keyboardHeight = viewport ? Math.max(0, (viewportBottom.current?.getBoundingClientRect().bottom ?? window.innerHeight) - viewport.height - viewport.offsetTop) : 0;
-      const keyboardOpen = fullHeight - (viewport?.height ?? window.innerHeight) > 100;
-      container.current?.style.setProperty('--keyboard-height', `${keyboardHeight}px`);
-      container.current?.style.setProperty('--journal-viewport-height', `${viewport?.height ?? window.innerHeight}px`);
-      container.current?.style.setProperty('--journal-controls-gap', keyboardOpen ? '8px' : 'var(--journal-dock-bottom)');
+      const height = viewport?.height ?? window.innerHeight;
+      fullHeight = Math.max(fullHeight, window.innerHeight, height);
+      // Use document coordinates, avoiding Safari's moving fixed-position
+      // boundary when the keyboard resizes or pans the visual viewport.
+      const top = viewport?.pageTop ?? window.scrollY + (viewport?.offsetTop ?? 0);
+      controls.current?.style.setProperty('--journal-viewport-bottom', `${top + height}px`);
+      controls.current?.style.setProperty('--journal-viewport-height', `${height}px`);
+      controls.current?.style.setProperty('--journal-controls-gap', fullHeight - height > 100 ? '8px' : 'var(--journal-dock-bottom)');
     };
     position();
     viewport?.addEventListener('resize', position);
     viewport?.addEventListener('scroll', position);
     window.addEventListener('resize', position);
+    window.addEventListener('scroll', position, { passive: true });
+    document.addEventListener('focusin', position);
     return () => {
       viewport?.removeEventListener('resize', position);
       viewport?.removeEventListener('scroll', position);
       window.removeEventListener('resize', position);
+      window.removeEventListener('scroll', position);
+      document.removeEventListener('focusin', position);
     };
   }, []);
   function addBlock(content: JSONContent) {
@@ -191,15 +198,17 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
     } catch(error) {setInsertError(error instanceof Error?error.message:'Could not add this photo.');}
   }
   return <div ref={container} className="journal-body" data-empty={editor?.isEmpty}
-    onPointerDownCapture={event => {
-      interactions.current.add(event.nativeEvent);
-    }}
-    onFocusCapture={event => { interactions.current.add(event.nativeEvent); setActive(true); }}>
-    <span ref={viewportBottom} className="viewport-bottom-probe" aria-hidden="true" />
-    {editor && <JournalToolbar editor={editor} active={active} linking={!!picker} onLinkRecord={linkRecord} onDone={() => { exitSuggestion(editor.view); setPicker(null); editor.commands.blur(); setActive(false); }} />}
+    onFocusCapture={() => setActive(true)}
+    onClick={event => {
+      // An outside tap can dismiss the controls without blurring a contenteditable
+      // on iOS. A subsequent tap must reopen them even without a new focus event.
+      if (editor?.isFocused && (event.target as HTMLElement).closest('.journal-prose') && !(event.target as HTMLElement).closest('a')) setActive(true);
+    }}>
     <EditorContent editor={editor} />
     <input ref={photo} type="file" accept="image/*" hidden onChange={event=>{void addPhoto(event.target.files?.[0]);event.target.value='';}} />
     {insertError&&<p role="alert">{insertError}</p>}
+    {createPortal(<div ref={controls} className="journal-controls">
+    {editor && <JournalToolbar editor={editor} active={active} linking={!!picker} onLinkRecord={linkRecord} onDone={() => { exitSuggestion(editor.view); setPicker(null); editor.commands.blur(); setActive(false); }} />}
     {slash&&<div className="record-picker insert-picker" role="dialog" aria-label="Insert"><div className="picker-heading"><span>{insertMode==='menu'?'Insert':insertMode==='widgets'?'Widget':'Climb card'}</span><button type="button" aria-label="Close insert menu" onClick={()=>{if(editor)exitSuggestion(editor.view,slashKey);}}>×</button></div><div className="picker-options">
       {insertMode==='menu'&&[
         ['Chart','Sends by grade, sessions per week',()=>setInsertMode('widgets')],
@@ -219,5 +228,6 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
       {!matches.length && <p>No matching records.</p>}
       {canCreate && <button className="picker-create" onMouseDown={event => event.preventDefault()} onClick={create}>Create “{title}” as {creation.label}</button>}
     </div>}
+    </div>, document.body)}
   </div>;
 }
