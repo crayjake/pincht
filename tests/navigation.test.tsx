@@ -4,7 +4,7 @@ import App from '../src/App';
 import { seedRoutines } from './fixtures/journal';
 import { ROUTINES_KEY } from '../src/routines/data';
 import { DATA_MODE_KEY } from '../src/data/mode';
-import { loadDays, loadResources, saveResources } from '../src/components/home/journal-storage';
+import { loadDays, loadResources, saveDays, saveResources } from '../src/components/home/journal-storage';
 import { loadViews } from '../src/components/home/journal-views';
 import { loadWorkoutPlans } from '../src/workouts/catalog';
 import { clearWorkoutDraft, loadWorkoutDraft, restoredSession, saveWorkoutDraft } from '../src/workouts/draft';
@@ -24,7 +24,7 @@ beforeEach(() => {
     close: { configurable: true, value() { this.open = false; } },
   });
 });
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 async function navigate(path: string) {
   await act(async () => { window.history.replaceState(null, '', `/#/${path}`); window.dispatchEvent(new HashChangeEvent('hashchange')); });
 }
@@ -59,6 +59,48 @@ it('remembers the selected journal view across dock changes, To-do, and app reop
   window.history.replaceState(null, '', '/');
   render(<App />);
   expect(screen.getByRole('link', { name: 'Reading' }).getAttribute('aria-current')).toBe('page');
+});
+it('returns from a mention to the actual journal visit with records, edits, and its position preserved', async () => {
+  const climb = { id: 'return-slab', kind: 'climb' as const, title: 'Return slab', metric: '6A', meta: 'Gym', climbInfo: { type: 'boulder' as const, where: 'Gym' } };
+  saveClimb(climb);
+  saveDays([{ date: '2026-11-15', types: ['climb'], metrics: {}, visibleMetrics: [], records: [climb], entry: {
+    title: 'Keep my place', body: { type: 'doc', content: [{ type: 'paragraph', content: [
+      { type: 'text', text: 'Original writing ' },
+      { type: 'recordPill', attrs: { id: climb.id, label: climb.title, category: 'climb' } },
+    ] }] },
+  } }]);
+  vi.stubGlobal('scrollY', 0);
+  window.scrollTo = vi.fn((_x, y) => { vi.stubGlobal('scrollY', y); });
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function(this: HTMLElement) {
+    const top = this.dataset.navigationAnchor === 'day-2026-11-15' ? 1000 - window.scrollY : -500;
+    return { top, bottom: top + 300, height: 300 } as DOMRect;
+  });
+  render(<App />);
+  await navigate('view/climbing');
+  let entry = screen.getByRole('heading', { name: 'Keep my place' }).closest('article')!;
+  await click(/\d+ records/, within(entry));
+  const editor = entry.querySelector('.journal-prose') as HTMLElement & { editor: { commands: { insertContent: (text: string) => void } } };
+  await act(async () => { editor.focus(); editor.editor.commands.insertContent('Saved edit. '); });
+  vi.stubGlobal('scrollY', 870);
+  const mention = entry.querySelector('a[data-record-id]')!;
+  await act(async () => { fireEvent.pointerDown(mention); });
+  const journalVisit = window.history.state;
+  await navigate('library/climbs/return-slab');
+  const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+  await act(async () => { fireEvent.click(screen.getByRole('link', { name: 'Back', exact: true })); });
+  expect(back).toHaveBeenCalledOnce();
+  await act(async () => {
+    window.history.replaceState(journalVisit, '', '/#/view/climbing');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+  entry = screen.getByRole('heading', { name: 'Keep my place' }).closest('article')!;
+  expect(entry.querySelector('.records-toggle')?.getAttribute('aria-expanded')).toBe('true');
+  expect(entry.querySelector('.journal-prose')?.textContent).toContain('Saved edit.');
+  expect(window.scrollY).toBe(870);
+  expect(screen.getByRole('link', { name: 'Climbing', exact: true }).getAttribute('aria-current')).toBe('page');
+  // A late keyboard dismissal must keep this anchor steady too.
+  await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+  expect(window.scrollY).toBe(870);
 });
 it('edits a held view pill and uses its saved default on returning to Journal', async () => {
   render(<App />);

@@ -12,6 +12,7 @@ import { RoutinePages } from './routines/routine-pages';
 import { FirstRun, needsSetup } from './setup/setup';
 import { ViewPages } from './components/home/view-pages';
 import { lastJournalView } from './components/home/journal-views';
+import { NavigationProvider, usePath } from './navigation';
 
 export default function App() {
   useEffect(() => applyAppearance(), []);
@@ -27,12 +28,10 @@ export default function App() {
 }
 
 function AppRoutes({ onDataMode }: { onDataMode: (mode: DataMode) => void }) {
-  const [path, setPath] = useState(() => location.hash.slice(1) || '/journal');
-  useEffect(() => {
-    const update = () => { setPath(location.hash.slice(1) || '/journal'); window.scrollTo(0, 0); };
-    window.addEventListener('hashchange', update);
-    return () => window.removeEventListener('hashchange', update);
-  }, []);
+  return <NavigationProvider><Routes onDataMode={onDataMode} /></NavigationProvider>;
+}
+function Routes({ onDataMode }: { onDataMode: (mode: DataMode) => void }) {
+  const path = usePath();
   if (path === '/settings') return <SettingsPage onDataMode={onDataMode} />;
   if (path === '/do') return <DoPage />;
   if (path.startsWith('/library')) {

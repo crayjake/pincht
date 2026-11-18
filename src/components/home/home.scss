@@ -1,7 +1,8 @@
 :root {
-  --journal-safe-top: max(50px, env(safe-area-inset-top, 0px));
+  --journal-safe-top: env(safe-area-inset-top, 0px);
   --journal-header-height: calc(var(--journal-safe-top) + 42px);
-  --journal-dock-bottom: max(26px, env(safe-area-inset-bottom, 0px));
+  --journal-dock-bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) - 12px));
+  --journal-dock-clearance: calc(56px + var(--journal-dock-bottom) + 16px);
 }
 .today-page, .journal-dock, .journal-sheet, .sticky-journal-header, .record-picker {
   color: var(--color-text);
@@ -24,7 +25,7 @@
 .today-page {
   max-width: 430px;
   margin: 0 auto;
-  padding: calc(var(--journal-safe-top) + 6px) max(16px, env(safe-area-inset-right, 0px)) calc(132px + var(--journal-dock-bottom)) max(16px, env(safe-area-inset-left, 0px));
+  padding: calc(var(--journal-safe-top) + 6px) max(16px, env(safe-area-inset-right, 0px)) var(--journal-dock-clearance) max(16px, env(safe-area-inset-left, 0px));
 }
 .journal-widgets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .journal-widget {
@@ -280,9 +281,9 @@
   > div { display: flex; margin-right: -10px; }
   .feed-search-trigger { width: 44px; gap: 10px; color: var(--color-text-muted); > span { display: none; } }
   .feed-filter-trigger { width: 44px; border: 1px solid transparent; border-radius: 22px; }
-  &::before { content: ''; position: absolute; z-index: -1; inset: calc(-1 * var(--journal-safe-top)) -16px -6px; background: var(--color-page); border-bottom: 1px solid var(--color-border); opacity: 0; pointer-events: none; }
+  &::before { content: ''; position: absolute; z-index: -1; inset: calc(-1 * var(--journal-safe-top)) -16px -6px; background: var(--color-page); border-bottom: 1px solid transparent; pointer-events: none; }
   &.is-pinned {
-    &::before { opacity: 1; }
+    &::before { border-bottom-color: var(--color-border); }
     > .eyebrow { display: none; }
     > div { width: 100%; margin-right: 0; gap: 8px; }
     .feed-search-trigger { flex: 1; justify-content: flex-start; padding: 0 14px; border-radius: 22px; background: var(--color-sidebar); font-size: 15px; font-weight: 400; > span { display: inline; } }
@@ -426,7 +427,7 @@
 .custom-view-block { margin-top: 12px; }
 .view-widgets > .weekly-activity { grid-column: 1 / -1; margin: 0; }
 .view-chart { padding: 14px; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-surface); h2 { margin: 0 0 14px; font-size: 16px; } .rehab-chart, .sleep-chart svg { height: 120px; } }
-.configuration-page { padding-bottom: calc(108px + var(--journal-dock-bottom)); .screen-heading { margin-bottom: 16px; } .screen-heading p { margin: 3px 0 0; font: 400 12px/16px var(--font-mono); color: var(--color-text-muted); } }
+.configuration-page { padding-bottom: var(--journal-dock-clearance); .screen-heading { margin-bottom: 16px; } .screen-heading p { margin: 3px 0 0; font: 400 12px/16px var(--font-mono); color: var(--color-text-muted); } }
 .editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin: 0 0 12px -10px; h1 { margin: 0; font-size: 17px; line-height: 22px; font-weight: 700; } .text-action { font-size: 16px; } }
 .today-page .save-action { min-height: 40px; padding: 0 18px; border: 0; border-radius: 20px; background: var(--color-text); color: var(--color-page); font-size: 15px; font-weight: 650; }
 .settings-field { display: block; margin-top: 12px; > span { display: block; margin-bottom: 6px; } input, select { display: block; box-sizing: border-box; width: 100%; min-width: 0; height: 48px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); color: var(--color-text); font: 600 17px var(--font-sans); } input[type='date'], select { font-size: 16px; font-weight: 400; } }
@@ -507,7 +508,7 @@
 
 // Home screens and floating dock from the third reference.
 .primary-nav {
-  bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) - 12px));
+  bottom: var(--journal-dock-bottom);
   width: 216px; height: 56px; padding: 6px; gap: 4px;
   border: 1px solid var(--color-border); border-radius: 28px;
   background: var(--color-surface);
@@ -518,7 +519,7 @@
   a > .primary-nav-indicator { position: absolute; inset: 0; border-radius: inherit; background: var(--color-text); }
   .primary-nav-icon { position: relative; z-index: 1; }
 }
-.screen-journal:not(.expanded-page), .do-page, .library-page:not(:has(.indev-banner)) { padding-top: max(52px, env(safe-area-inset-top, 0px)); }
+.screen-journal:not(.expanded-page), .do-page, .library-page:not(:has(.indev-banner)) { padding-top: calc(var(--journal-safe-top) + 8px); }
 .journal-heading.view-heading { min-height: 44px; height: 44px; padding: 0; }
 .journal-heading.view-heading > .journal-view-bar { width: calc(100% + 8px); margin-right: -8px; }
 .view-pills { min-width: 0; gap: 8px; }
@@ -544,6 +545,7 @@
 }
 .do-page .screen-heading, .library-page:not(:has(.indev-banner)) .screen-heading { margin-bottom: 0; h1 { margin: 0; font-size: 30px; line-height: 44px; font-weight: 700; letter-spacing: -.02em; } }
 .library-page:not(:has(.indev-banner)) .screen-heading { margin-right: -8px; }
+.library-header-actions { display: flex; align-items: center; flex-shrink: 0; }
 .next-workout { margin-top: 6px; padding: 16px; border-radius: 22px;
   @each $category in rehab, training, sleep { &[data-category='#{$category}'] { background: var(--color-#{$category}-bg); color: var(--color-#{$category}-fg); .open-workout { background: var(--color-#{$category}-fg); color: var(--color-#{$category}-bg); } } }
   h2 { margin: 4px 0 0; font: 700 24px/30px var(--font-sans); letter-spacing: -.01em; }

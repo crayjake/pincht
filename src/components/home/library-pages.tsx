@@ -26,6 +26,7 @@ import { WorkoutProgress } from './workout-progress';
 import { ClimbHeader, ClimbPage, ClimbsList, ClimbSheet } from '../../climbs/climb-pages';
 import { GoalChecklist, GoalSheet } from '../../goals/goal-sheet';
 import { WorkoutsList, WorkoutSheet } from '../../workouts/workout-editor';
+import { BackLink } from '../../navigation';
 import './home.scss';
 
 export default function LibraryPage({ category, id, seriesId }: { category?: string; id?: string; seriesId?: string }) {
@@ -84,7 +85,7 @@ export default function LibraryPage({ category, id, seriesId }: { category?: str
   const endCreation = () => { setCreating(false); location.hash = `/library/${category}`; };
   const historyRows = history.sort((a, b) => b.date.localeCompare(a.date));
   return <><main className="today-page library-page configuration-page">{category === 'metrics' && <InDevelopment />}
-    {book ? null : isDetail && record?.kind === 'goal' ? <ClimbHeader title="Goal" back="#/library/goals"><button className="option" onClick={() => setEditingGoal(true)}>Edit</button></ClimbHeader> : category === 'climbs' ? (!isDetail && <ClimbHeader title="Climbs" back="#/library"><a className="icon-button" href="#/library/climbs/new" aria-label="New climb"><Icon name="plus" size={22} /></a></ClimbHeader>) : <header className="screen-heading"><div>{category && <a className="text-action" href={isDetail || creating ? `#/library/${category}` : '#/library'}>‹ {isDetail || creating ? title : 'Library'}</a>}<h1>{isDetail ? record?.title ?? routine?.name ?? view?.name ?? categoryName(id!) : title}</h1></div>{!category && <><a className="icon-button" aria-label="Settings" href="#/settings"><Icon name="settings" size={22} /></a><button className="icon-button" aria-label="Create new" onClick={() => setCreatePicker(true)}><Icon name="plus" size={22} /></button></>}</header>}
+    {book ? null : isDetail && record?.kind === 'goal' ? <ClimbHeader title="Goal" back="#/library/goals"><button className="option" onClick={() => setEditingGoal(true)}>Edit</button></ClimbHeader> : category === 'climbs' ? (!isDetail && <ClimbHeader title="Climbs" back="#/library"><a className="icon-button" href="#/library/climbs/new" aria-label="New climb"><Icon name="plus" size={22} /></a></ClimbHeader>) : <header className="screen-heading"><div>{category && <BackLink className="text-action" href={isDetail || creating ? `#/library/${category}` : '#/library'}>‹ {isDetail || creating ? title : 'Library'}</BackLink>}<h1>{isDetail ? record?.title ?? routine?.name ?? view?.name ?? categoryName(id!) : title}</h1></div>{!category && <div className="library-header-actions"><button className="icon-button" aria-label="Create new" onClick={() => setCreatePicker(true)}><Icon name="plus" size={22} /></button><a className="icon-button" aria-label="Settings" href="#/settings"><Icon name="settings" size={22} /></a></div>}</header>}
     {!isDetail && category !== 'climbs' && <label className="library-search"><Icon name="search" size={20} /><span className="sr-only">Search Library</span><input type="search" placeholder={category ? `Search ${title.toLowerCase()}…` : 'Search climbs, workouts, books…'} value={query} onChange={event => setQuery(event.target.value)} /></label>}
     {isDetail ? <>
       {category === 'metrics' ? <MetricDetail id={id!} days={days} seriesId={seriesId} /> : record || routine || view ? <>

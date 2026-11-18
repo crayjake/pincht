@@ -29,6 +29,7 @@ import { recordHref } from './library-data';
 
 import { JOURNAL_KEY, JOURNAL_RESOURCES_KEY, loadDays, loadResources, saveDays, saveResources } from './journal-storage';
 import { dataKey, type DataMode } from '../../data/mode';
+import { BackLink, useRememberedState } from '../../navigation';
 const emptyBody: RichBody = { type: 'doc', content: [{ type: 'paragraph' }] };
 const summaryRoutes: Partial<Record<SummaryCategory, string>> = {
   climb: '#/library/climbs', rehab: '#/library/workouts', training: '#/library/workouts', sleep: '#/library/metrics/sleep', weight: '#/library/metrics/weight', goal: '#/library/goals',
@@ -58,9 +59,9 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
   const [tagDay, setTagDay] = useState<Day | null>(null);
   const [undoEntry, setUndoEntry] = useState<{date:string;entry:Entry} | null>(null);
   const [editorVersion, setEditorVersion] = useState(0);
-  const [query, setQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [filter, setFilter] = useState(emptyFilter);
+  const [query, setQuery] = useRememberedState('query', () => '');
+  const [searchOpen, setSearchOpen] = useRememberedState('searchOpen', () => false);
+  const [filter, setFilter] = useRememberedState('filter', () => emptyFilter);
   const [filterOpen, setFilterOpen] = useState(false);
   const [detail, setDetail] = useState<PillResource | null>(null);
   const [routineDetail, setRoutineDetail] = useState<{ routine: Routine; date: string } | null>(null);
@@ -72,8 +73,8 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
     if (!view || entryDate) return;
     try { rememberJournalView(view.id); } catch { /* View selection stays available for this visit. */ }
   }, [view, entryDate]);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-  const [openComposers, setOpenComposers] = useState<Set<string>>(() => new Set());
+  const [expanded, setExpanded] = useRememberedState<Set<string>>('expanded', () => new Set());
+  const [openComposers, setOpenComposers] = useRememberedState<Set<string>>('composers', () => new Set());
   const [scrolled, setScrolled] = useState(false);
   const journalHeading = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -86,7 +87,7 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
       const y = window.scrollY;
       const heading = journalHeading.current;
       const bounds = heading?.getBoundingClientRect();
-      const pinTop = heading ? parseFloat(getComputedStyle(heading).top) || 50 : 50;
+      const pinTop = heading ? parseFloat(getComputedStyle(heading).top) || 0 : 0;
       setScrolled(entryDate ? y > 120 : !!bounds?.height && bounds.top <= pinTop);
     }
     scroll();
@@ -154,7 +155,7 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
               return <section className="routine-run" key={`routine-${id}`}>
                 <header className="routine-range"><span>{rangeLabel(group.days)}</span><span>{group.days.length} {group.days.length === 1 ? 'day' : 'days'}</span></header>
                 {screen !== 'climbing' && <p className="run-adherence">{adherence(data, group.days.map(d => d.date))}</p>}
-                <div className="routine-card">{group.days.map(day => <div className={`routine-day${expanded.has(day.date) ? ' is-expanded' : ''}`} key={day.date}>
+                <div className="routine-card">{group.days.map(day => <div className={`routine-day${expanded.has(day.date) ? ' is-expanded' : ''}`} data-navigation-anchor={`day-${day.date}`} key={day.date}>
                   <button type="button" className="routine-row" aria-label={`${shortDate(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}, ${day.types.join(' and ')}, ${day.records.length} records`} aria-expanded={expanded.has(day.date)} aria-controls={`records-${day.date}`} onClick={() => toggle(day.date)}>
                     <span className="routine-date">{shortDate(day.date, { weekday: 'short' })} {shortDate(day.date, { day: 'numeric' })}</span><span className="routine-types"><TypeWords types={day.types} /></span><span className="routine-sleep">{day.metrics.sleep !== undefined ? duration(day.metrics.sleep, true) : '—'}</span><span className="routine-weight">{day.metrics.weight !== undefined ? `${day.metrics.weight.toFixed(1)} kg` : '—'}</span>
                   </button>
@@ -169,7 +170,7 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
             const { day } = group;
             const summaryItems = daySummary(day, data);
             const records = entryRecords(day, resources);
-            return <article className={`written-entry${!hasJournalContent(day.entry) ? ' empty-entry' : ''}${openComposers.has(day.date) ? ' composer-open' : ''}`} key={day.date} onContextMenu={event => {
+            return <article className={`written-entry${!hasJournalContent(day.entry) ? ' empty-entry' : ''}${openComposers.has(day.date) ? ' composer-open' : ''}`} data-navigation-anchor={`day-${day.date}`} key={day.date} onContextMenu={event => {
               if ((event.target as HTMLElement).closest('input, textarea, [contenteditable], button, a')) return;
               event.preventDefault();
               setMenuDay(day);
@@ -207,10 +208,10 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
         </div>;
   return <>
     {searchOpen && !entryDate ? <JournalSearch days={viewDays} data={data} query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} onAllFilters={() => setFilterOpen(true)} onClose={closeSearch} onOpen={openRecord} onRoutine={openRoutine} /> : <>
-      {entryDate && <header className="expanded-header"><a className="icon-button" href="#/journal" aria-label="Back to Journal"><Icon name="back" /></a><span className="sticky-title">{scrolled ? focused?.entry?.title || 'Journal' : 'Journal'}</span>{scrolled && <span className="sticky-date">{shortDate(entryDate, { day: 'numeric', month: 'short' })}</span>}</header>}
+      {entryDate && <header className="expanded-header"><BackLink className="icon-button" href="#/journal" aria-label="Back to Journal"><Icon name="back" /></BackLink><span className="sticky-title">{scrolled ? focused?.entry?.title || 'Journal' : 'Journal'}</span>{scrolled && <span className="sticky-date">{shortDate(entryDate, { day: 'numeric', month: 'short' })}</span>}</header>}
       <main className={`today-page screen-${screen}${entryDate ? ' expanded-page' : ''}`} aria-label={entryDate ? 'Expanded journal entry' : screenTitle}>
         {!entryDate && screen === 'today' && <>
-          <header className="screen-heading todo-heading"><a className="icon-button" href="#/journal" aria-label="Back to Journal"><Icon name="back" size={22} /></a><h1>To-do</h1><a className="text-action" href="#/routines">Routines ›</a></header>
+          <header className="screen-heading todo-heading"><BackLink className="icon-button" href="#/journal" aria-label="Back to Journal"><Icon name="back" size={22} /></BackLink><h1>To-do</h1><a className="text-action" href="#/routines">Routines ›</a></header>
           {tasks('todo')}
 
         </>}

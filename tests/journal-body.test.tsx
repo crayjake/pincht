@@ -77,6 +77,9 @@ it('updates the shared picker and toolbar boundary as the keyboard opens, pans, 
   vi.stubGlobal('innerHeight', 844);
   const { body, editor } = setup();
   const root = body.closest('.journal-body') as HTMLElement;
+  const probe = root.querySelector('.viewport-bottom-probe')!;
+  let fixedBottom = 844;
+  vi.spyOn(probe, 'getBoundingClientRect').mockImplementation(() => ({ bottom: fixedBottom }) as DOMRect);
   await act(async () => { body.focus(); editor.commands.insertContent('@'); });
   expect(root.contains(screen.getByRole('dialog'))).toBe(true);
   expect(root.contains(screen.getByRole('toolbar'))).toBe(true);
@@ -89,7 +92,13 @@ it('updates the shared picker and toolbar boundary as the keyboard opens, pans, 
   viewport.offsetTop = 60;
   await act(async () => { viewport.dispatchEvent(new Event('scroll')); });
   expect(root.style.getPropertyValue('--keyboard-height')).toBe('354px');
+  // Some Safari viewport states already move fixed elements above the keyboard.
+  fixedBottom = 490;
+  await act(async () => { viewport.dispatchEvent(new Event('resize')); });
+  expect(root.style.getPropertyValue('--keyboard-height')).toBe('0px');
+  expect(root.style.getPropertyValue('--journal-controls-gap')).toBe('8px');
   viewport.height = 844; viewport.offsetTop = 0;
+  fixedBottom = 844;
   await act(async () => { viewport.dispatchEvent(new Event('resize')); });
   expect(root.style.getPropertyValue('--keyboard-height')).toBe('0px');
   expect(root.style.getPropertyValue('--journal-controls-gap')).toBe('var(--journal-dock-bottom)');

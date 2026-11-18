@@ -6,9 +6,10 @@ import { localDate, shortDate, type JournalRecord } from '../components/home/jou
 import { loadDays, loadResources } from '../components/home/journal-storage';
 import { climbResources, climbStats, saveClimb, saveClimbSession } from './data';
 import './climbs.scss';
+import { BackLink } from '../navigation';
 
 export function ClimbHeader({ title, back = '#/library/climbs', children }: { title: string; back?: string; children?: React.ReactNode }) {
-  return <header className="reference-page-header"><a href={back} className="icon-button" aria-label="Back"><Icon name="back" size={22} /></a><h1>{title}</h1>{children}</header>;
+  return <header className="reference-page-header"><BackLink href={back} className="icon-button" aria-label="Back"><Icon name="back" size={22} /></BackLink><h1>{title}</h1>{children}</header>;
 }
 export function ClimbSheet({ initial, initialTitle = '', fromEntry = false, onClose, onCreated }: {initial?: JournalRecord; initialTitle?: string; fromEntry?: boolean; onClose: () => void; onCreated?: (record: JournalRecord) => void}) {
   const formId = useId();

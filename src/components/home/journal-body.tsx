@@ -34,6 +34,7 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
   const [highlight, setHighlight] = useState(0);
   const [active, setActive] = useState(false);
   const container = useRef<HTMLDivElement>(null);
+  const viewportBottom = useRef<HTMLSpanElement>(null);
   const interactions = useRef(new WeakSet<Event>());
   const callbacks = useRef({ onChange, onOpen, resources });
   useEffect(() => { callbacks.current = { onChange, onOpen, resources }; }, [onChange, onOpen, resources]);
@@ -154,12 +155,15 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
   }, [editor, slashKey]);
   useEffect(() => {
     const viewport = window.visualViewport;
+    const fullHeight = Math.max(window.innerHeight, viewport?.height ?? 0);
     const position = () => {
-      const keyboardHeight = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
-      // Share the keyboard boundary, including iOS viewport panning, between both controls.
+      // Measure where fixed positioning actually ends. Safari can resize that
+      // boundary itself; subtracting the keyboard from innerHeight then doubles it.
+      const keyboardHeight = viewport ? Math.max(0, (viewportBottom.current?.getBoundingClientRect().bottom ?? window.innerHeight) - viewport.height - viewport.offsetTop) : 0;
+      const keyboardOpen = fullHeight - (viewport?.height ?? window.innerHeight) > 100;
       container.current?.style.setProperty('--keyboard-height', `${keyboardHeight}px`);
       container.current?.style.setProperty('--journal-viewport-height', `${viewport?.height ?? window.innerHeight}px`);
-      container.current?.style.setProperty('--journal-controls-gap', keyboardHeight > 0 ? '8px' : 'var(--journal-dock-bottom)');
+      container.current?.style.setProperty('--journal-controls-gap', keyboardOpen ? '8px' : 'var(--journal-dock-bottom)');
     };
     position();
     viewport?.addEventListener('resize', position);
@@ -192,6 +196,7 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
       if (editor?.view.dom.contains(event.target as globalThis.Node)) setActive(true);
     }}
     onFocusCapture={event => { interactions.current.add(event.nativeEvent); setActive(true); }}>
+    <span ref={viewportBottom} className="viewport-bottom-probe" aria-hidden="true" />
     {editor && <JournalToolbar editor={editor} active={active} linking={!!picker} onLinkRecord={linkRecord} onDone={() => { exitSuggestion(editor.view); setPicker(null); editor.commands.blur(); setActive(false); }} />}
     <EditorContent editor={editor} />
     <input ref={photo} type="file" accept="image/*" hidden onChange={event=>{void addPhoto(event.target.files?.[0]);event.target.value='';}} />

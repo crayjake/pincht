@@ -6,12 +6,14 @@
 
 html {
   background-color: var(--color-page);
+  overscroll-behavior-y: none;
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
   background-color: var(--color-page);
+  overscroll-behavior-y: none;
 }
 
 #root {
