@@ -17,7 +17,6 @@ import { loadDays, loadResources } from './journal-storage';
 import { categoryName, libraryCategories, libraryResources, recordHistory, recordHref, type LibraryCategory } from './library-data';
 import { loadViews } from './journal-views';
 import { viewEditorHref } from './view-navigation';
-import { getDataMode, type DataMode } from '../../data/mode';
 import { Icon } from './journal-icons';
 import { allRoutines } from '../../routines/tasks';
 import { QuickLog } from './quick-log';
@@ -29,7 +28,7 @@ import { GoalChecklist, GoalSheet } from '../../goals/goal-sheet';
 import { WorkoutsList, WorkoutSheet } from '../../workouts/workout-editor';
 import './home.scss';
 
-export default function LibraryPage({ category, id, seriesId, onDataMode }: { category?: string; id?: string; seriesId?: string; onDataMode: (mode: DataMode) => void }) {
+export default function LibraryPage({ category, id, seriesId }: { category?: string; id?: string; seriesId?: string }) {
   const routines = useRoutines(false);
   const [measurement, setMeasurement] = useState(false);
   const [editingGoal, setEditingGoal] = useState(false);
@@ -85,7 +84,7 @@ export default function LibraryPage({ category, id, seriesId, onDataMode }: { ca
   const endCreation = () => { setCreating(false); location.hash = `/library/${category}`; };
   const historyRows = history.sort((a, b) => b.date.localeCompare(a.date));
   return <><main className="today-page library-page configuration-page">{category === 'metrics' && <InDevelopment />}
-    {category === 'climbs' ? (!isDetail && <ClimbHeader title="Climbs" back="#/library"><a className="icon-button" href="#/library/climbs/new" aria-label="New climb"><Icon name="plus" size={22} /></a></ClimbHeader>) : <header className="screen-heading"><div>{category && <a className="text-action" href={isDetail || creating ? `#/library/${category}` : '#/library'}>‹ {isDetail || creating ? title : 'Library'}</a>}<h1>{isDetail ? record?.title ?? routine?.name ?? view?.name ?? categoryName(id!) : title}</h1></div>{!category && <><a className="icon-button" aria-label="Settings" href="#/settings"><Icon name="settings" size={22} /></a><button className="icon-button" aria-label="Create new" onClick={() => setCreatePicker(true)}><Icon name="plus" size={22} /></button></>}</header>}
+    {book ? null : isDetail && record?.kind === 'goal' ? <ClimbHeader title="Goal" back="#/library/goals"><button className="option" onClick={() => setEditingGoal(true)}>Edit</button></ClimbHeader> : category === 'climbs' ? (!isDetail && <ClimbHeader title="Climbs" back="#/library"><a className="icon-button" href="#/library/climbs/new" aria-label="New climb"><Icon name="plus" size={22} /></a></ClimbHeader>) : <header className="screen-heading"><div>{category && <a className="text-action" href={isDetail || creating ? `#/library/${category}` : '#/library'}>‹ {isDetail || creating ? title : 'Library'}</a>}<h1>{isDetail ? record?.title ?? routine?.name ?? view?.name ?? categoryName(id!) : title}</h1></div>{!category && <><a className="icon-button" aria-label="Settings" href="#/settings"><Icon name="settings" size={22} /></a><button className="icon-button" aria-label="Create new" onClick={() => setCreatePicker(true)}><Icon name="plus" size={22} /></button></>}</header>}
     {!isDetail && category !== 'climbs' && <label className="library-search"><Icon name="search" size={20} /><span className="sr-only">Search Library</span><input type="search" placeholder={category ? `Search ${title.toLowerCase()}…` : 'Search climbs, workouts, books…'} value={query} onChange={event => setQuery(event.target.value)} /></label>}
     {isDetail ? <>
       {category === 'metrics' ? <MetricDetail id={id!} days={days} seriesId={seriesId} /> : record || routine || view ? <>
@@ -95,8 +94,9 @@ export default function LibraryPage({ category, id, seriesId, onDataMode }: { ca
         {routine && <><a className="text-action" href={`#/routines/${routine.id}`}>Edit routine</a><p className="muted">{routine.active ? 'Active' : 'Paused'} · from {routine.start}</p><div className="settings-list">{data.checkIns.filter(value => value.routineId === routine.id && value.status === 'done').sort((a,b) => b.date.localeCompare(a.date)).map(value => <a className="settings-row" key={value.date} href={`#/journal/${value.date}`}><strong>{value.date}</strong><small>{value.minutes !== undefined ? `${value.minutes} min` : value.drinks !== undefined ? `${value.drinks} drinks` : 'Completed'}</small></a>)}</div></>}
         {view && <div className="settings-list"><a className="settings-row" href={`#/view/${view.id}`}>Open view</a><a className="settings-row" href={viewEditorHref(view.id)}>Edit view</a></div>}
         {record?.kind === 'climb' && <ClimbPage record={record} onChanged={() => refreshMeasurements(value => value + 1)} />}
+        {record?.kind === 'goal' && <h2>{record.title}</h2>}
         {record?.goal && <><ViewWidgets widgets={['strength']} days={days} data={data} loads={dragLoads(loadSessions())} goalId={record.id} /><button className="primary-button" onClick={() => { if (measurementPreset) location.hash = `/train/${measurementPreset.id}`; else if (!record.goal?.seriesId || record.goal.seriesId === directDragSeriesId) setMeasurement(true); }} disabled={!!record.goal?.seriesId && record.goal.seriesId !== directDragSeriesId && !measurementPreset}>Log measurement</button></>}
-        {record?.climbGoal && <><button className="text-action" onClick={() => setEditingGoal(true)}>Edit goal</button><GoalChecklist goal={record} days={days} resources={resources} onEdit={() => setEditingGoal(true)} /></>}{record?.progress && !record.climbGoal && <p>{record.progress.completed} / {record.progress.total}</p>}
+        {record?.climbGoal && <><GoalChecklist goal={record} days={days} resources={resources} onEdit={() => setEditingGoal(true)} /></>}{record?.progress && !record.climbGoal && <p>{record.progress.completed} / {record.progress.total}</p>}
         {record && !book && record.kind !== 'climb' && <section className="settings-section"><h2>History</h2>{historyRows.length ? historyRows.map(item => <section key={`${item.date}-${item.record.id}`} className="library-history"><a className="eyebrow text-action" href={`#/journal/${item.date}`}>{shortDate(item.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · {item.logged ? 'logged' : 'referenced'}</a><RecordItem record={item.record} onOpen={record => { location.hash = recordHref(record, goalSeries?.id); }} /></section>) : <p className="muted">No logs or references yet.</p>}</section>}
       </> : <p className="muted">This item could not be found.</p>}
     </> : !category && !query ? <>
@@ -106,7 +106,6 @@ export default function LibraryPage({ category, id, seriesId, onDataMode }: { ca
       const items = list(kind).filter(item => `${item.title} ${item.subtitle}`.toLowerCase().includes(query.toLowerCase()));
       return <section className="settings-section" key={kind}><header className="library-section-heading"><h2><a href={`#/library/${kind}`}>{categoryName(kind)}</a></h2><button className="text-action" onClick={() => newItem(kind)}>+ New<span className="sr-only"> {kind}</span></button></header><div className="settings-list">{items.map(item => <a className="settings-row" key={item.id} href={item.href}><strong>{item.title}</strong><small>{item.subtitle}</small></a>)}{!items.length && <p className="muted">{query ? 'No matches.' : `No ${kind} yet.`}</p>}</div></section>;
     })}
-    {!category && <section className="settings-section data-mode-switch"><label className="form-label">Stored data<select aria-label="Stored data mode" value={getDataMode()} onChange={event => onDataMode(event.target.value as DataMode)}><option value="real">My real setup</option><option value="demo">Testing / dummy data</option></select></label><p className="settings-caption">Each mode keeps its own saved data.</p></section>}
     {routines.error && <p role="alert">{routines.error}</p>}
   </main><PrimaryNav active="library" />
   {editingWorkout && plan && <WorkoutSheet initial={plan} onClose={() => setEditingWorkout(false)} onSaved={() => refreshMeasurements(v => v + 1)} />}

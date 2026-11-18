@@ -8,6 +8,20 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
+it('opens inline record links on click and Enter using their actual record destination', async () => {
+  const record = { id: 'sidepull', title: 'Sidepull Season', kind: 'climb' as const, metric: '7A', meta: '' };
+  const onOpen = vi.fn();
+  render(<JournalBody body={{ type: 'doc', content: [{ type: 'paragraph', content: [
+    { type: 'recordPill', attrs: { id: record.id, label: record.title, category: 'climb' } },
+  ] }] }} resources={[record]} onChange={vi.fn()} onOpen={onOpen} />);
+  const link = screen.getByRole('link', { name: record.title });
+  expect(link.getAttribute('href')).toBe('#/library/climbs/sidepull');
+  await act(async () => { fireEvent.click(link); });
+  expect(onOpen).toHaveBeenCalledExactlyOnceWith(record);
+  await act(async () => { fireEvent.keyDown(link, { key: 'Enter' }); });
+  expect(onOpen).toHaveBeenCalledTimes(2);
+});
+
 function setup() {
   render(<><input aria-label="Journal title" /><JournalBody
     body={{ type: 'doc', content: [{ type: 'paragraph' }] }}

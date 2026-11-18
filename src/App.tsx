@@ -11,6 +11,7 @@ import { selectDataMode } from './data/initialise';
 import { RoutinePages } from './routines/routine-pages';
 import { FirstRun, needsSetup } from './setup/setup';
 import { ViewPages } from './components/home/view-pages';
+import { lastJournalView } from './components/home/journal-views';
 
 export default function App() {
   useEffect(() => applyAppearance(), []);
@@ -32,11 +33,11 @@ function AppRoutes({ onDataMode }: { onDataMode: (mode: DataMode) => void }) {
     window.addEventListener('hashchange', update);
     return () => window.removeEventListener('hashchange', update);
   }, []);
-  if (path === '/settings') return <SettingsPage />;
+  if (path === '/settings') return <SettingsPage onDataMode={onDataMode} />;
   if (path === '/do') return <DoPage />;
   if (path.startsWith('/library')) {
     const [route, query] = path.split('?');
-    return <LibraryPage key={path} category={route.split('/')[2]} id={route.split('/')[3] ? decodeURIComponent(route.split('/')[3]) : undefined} seriesId={new URLSearchParams(query).get('series') ?? undefined} onDataMode={onDataMode} />;
+    return <LibraryPage key={path} category={route.split('/')[2]} id={route.split('/')[3] ? decodeURIComponent(route.split('/')[3]) : undefined} seriesId={new URLSearchParams(query).get('series') ?? undefined} />;
   }
   if (path.startsWith('/train')) return <Train key={path} presetId={path.split('/')[2]} />;
   if (path.startsWith('/routines')) return <RoutinePages key={path} id={path.split('/')[2]} />;
@@ -45,7 +46,7 @@ function AppRoutes({ onDataMode }: { onDataMode: (mode: DataMode) => void }) {
     return <ViewPages key={path} id={route.split('/')[3]} returnTo={new URLSearchParams(query).get('returnTo') ?? undefined} />;
   }
   if (path.startsWith('/view/')) return <Home key={path} viewId={path.split('/')[2]} screen="climbing" />;
-  if (path === '/climbs' || path === '/metrics') return <LibraryPage key={path} category={path === '/climbs' ? 'climbs' : 'metrics'} onDataMode={onDataMode} />;
+  if (path === '/climbs' || path === '/metrics') return <LibraryPage key={path} category={path === '/climbs' ? 'climbs' : 'metrics'} />;
   const entryDate = /^\/journal\/(\d{4}-\d{2}-\d{2})$/.exec(path)?.[1];
-  return <Home key={path} entryDate={entryDate} screen={path === '/climbing' ? 'climbing' : path === '/todo' || path === '/today' ? 'today' : 'journal'} onDataMode={onDataMode} />;
+  return <Home key={path} entryDate={entryDate} viewId={!entryDate && (path === '/journal' || path === '/') ? lastJournalView().id : undefined} screen={path === '/climbing' ? 'climbing' : path === '/todo' || path === '/today' ? 'today' : 'journal'} onDataMode={onDataMode} />;
 }

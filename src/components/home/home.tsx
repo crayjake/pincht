@@ -20,7 +20,7 @@ import { planCategory } from '../../workouts/fixtures';
 import { dragLoads } from '../../routines/rehab-loads';
 import { JournalSearch } from './journal-search';
 import { daySummary, type SummaryCategory } from './journal-summary';
-import { climbingView, defaultView, isViewDay, loadViews } from './journal-views';
+import { climbingView, defaultView, isViewDay, loadViews, rememberJournalView } from './journal-views';
 import { withMentionedClimbs } from './journal-climbs';
 import { routineLink } from '../../routines/tasks';
 import { loadWorkoutPlans } from '../../workouts/catalog';
@@ -68,6 +68,10 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
   const createdBook = useRef<JournalRecord | undefined>(undefined);
   const views = useMemo(() => loadViews(), []);
   const view = useMemo(() => screen === 'today' ? undefined : views.find(view => view.id === (viewId ?? (screen === 'climbing' ? 'climbing' : defaultView().id))) ?? climbingView, [screen, viewId, views]);
+  useEffect(() => {
+    if (!view || entryDate) return;
+    try { rememberJournalView(view.id); } catch { /* View selection stays available for this visit. */ }
+  }, [view, entryDate]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [openComposers, setOpenComposers] = useState<Set<string>>(() => new Set());
   const [scrolled, setScrolled] = useState(false);
@@ -206,7 +210,7 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
       {entryDate && <header className="expanded-header"><a className="icon-button" href="#/journal" aria-label="Back to Journal"><Icon name="back" /></a><span className="sticky-title">{scrolled ? focused?.entry?.title || 'Journal' : 'Journal'}</span>{scrolled && <span className="sticky-date">{shortDate(entryDate, { day: 'numeric', month: 'short' })}</span>}</header>}
       <main className={`today-page screen-${screen}${entryDate ? ' expanded-page' : ''}`} aria-label={entryDate ? 'Expanded journal entry' : screenTitle}>
         {!entryDate && screen === 'today' && <>
-          <header className="screen-heading"><div><h1>To-do</h1></div><a className="text-action" href="#/routines">Routines ›</a></header>
+          <header className="screen-heading todo-heading"><a className="icon-button" href="#/journal" aria-label="Back to Journal"><Icon name="back" size={22} /></a><h1>To-do</h1><a className="text-action" href="#/routines">Routines ›</a></header>
           {tasks('todo')}
 
         </>}

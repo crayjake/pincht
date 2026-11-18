@@ -47,6 +47,7 @@ export function createDemoData(today = localDate()): { days: Day[]; routines: Ro
   const routines = seedRoutines(today);
   routines.routines = routines.routines.filter(r => r.kind !== 'rehab').map(r => ({ ...r, start: shift(r.start, 2) }));
   routines.checkIns = Array.from({ length: 3 }, (_, block) => seedRoutines(today).checkIns.map(c => ({ ...c, date: shift(c.date, block) }))).flat();
+  const reading = demoBookHistory(routines);
   const sessions = rehabLoads.map((load, index): Session => {
     const preset = structuredClone(workoutPresets.find(p => p.id === 'finger-rehab')!);
     if (preset.prescription.kind === 'hold') preset.prescription.targetKg = load.kg;
@@ -64,5 +65,29 @@ export function createDemoData(today = localDate()): { days: Day[]; routines: Ro
     sessions.push({ ...session, id: `demo-pullups-${index}`, phase: 'review', finishedAt: new Date(now + 900_000).toISOString(), rpe: 7,
       sets: Array.from({ length: 3 }, (_, set) => ({ set: set + 1, source: 'manual', status: 'completed', reps: 5, trace: [] })) });
   }
-  return { days, routines, sessions };
+  return { days, routines: reading, sessions };
+}
+
+/** Enrich the existing example library without resetting journal or workout edits. */
+export function demoBookHistory(data: RoutineData): RoutineData {
+  const piranesi = data.books.find(book => book.id === 'piranesi' && book.title === 'Piranesi' && book.author === 'Susanna Clarke');
+  if (!piranesi) return data;
+  const reading = data.checkIns.filter(log => log.bookId === piranesi.id && log.status === 'done').sort((a, b) => a.date.localeCompare(b.date));
+  const latest = reading.at(-1)?.date;
+  const recent = reading.filter(log => latest && log.date > addDays(latest, -14));
+  const older = reading.filter(log => !recent.includes(log));
+  const populate = reading.length > 0 && reading.every(log => log.page === undefined);
+  const books: RoutineData['books'] = [
+    { ...piranesi, isbn: '9781526622433', catalogKey: '/books/OL57673846M', coverUrl: 'https://covers.openlibrary.org/b/id/15268930-M.jpg', status: piranesi.status ?? 'reading', started: piranesi.started ?? recent[0]?.date },
+    { id: 'nineteen-eighty-four', title: 'Nineteen Eighty-Four', author: 'George Orwell', pages: 384, initialPage: 0, status: 'finished', started: older[0]?.date, isbn: '9780141187761', catalogKey: '/books/OL7359256M', coverUrl: 'https://covers.openlibrary.org/b/id/12824243-M.jpg' },
+    { id: 'atomic-habits', title: 'Atomic Habits', author: 'James Clear', pages: 320, initialPage: 0, status: 'want-to-read', isbn: '9781847941831', catalogKey: '/books/OL57360656M', coverUrl: 'https://covers.openlibrary.org/b/id/15247577-M.jpg' },
+  ];
+  const next = { ...data, books: [...data.books.map(book => book.id === piranesi.id ? books[0] : book), ...books.slice(1).filter(book => !data.books.some(existing => existing.id === book.id))],
+    checkIns: populate ? data.checkIns.map(log => {
+      const index = older.indexOf(log);
+      if (index >= 0) return { ...log, bookId: 'nineteen-eighty-four', page: Math.ceil(384 * (index + 1) / older.length), minutes: [20, 25, 30][index % 3] };
+      const recentIndex = recent.indexOf(log);
+      return recentIndex >= 0 ? { ...log, page: Math.min(piranesi.pages, piranesi.initialPage + 12 * (recentIndex + 1)), minutes: [15, 20, 30][recentIndex % 3] } : log;
+    }) : data.checkIns };
+  return JSON.stringify(next) === JSON.stringify(data) ? data : next;
 }

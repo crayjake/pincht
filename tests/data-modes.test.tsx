@@ -2,8 +2,8 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
 import { JOURNAL_KEY, loadDays, saveDays, saveResources } from '../src/components/home/journal-storage';
-import { createDemoData } from '../src/data/demo';
-import { isDays } from '../src/data/validation';
+import { createDemoData, demoBookHistory } from '../src/data/demo';
+import { isDays, isRoutineData } from '../src/data/validation';
 import { initialiseDataMode, prepareDataMode, selectDataMode } from '../src/data/initialise';
 import { DATA_MODE_KEY, dataKey, getDataMode } from '../src/data/mode';
 import { createRoutines, ROUTINES_KEY } from '../src/routines/data';
@@ -27,6 +27,9 @@ async function navigate(path: string) {
 }
 async function switchMode(mode: 'real' | 'demo') {
   await navigate('library');
+  expect(screen.queryByLabelText('Stored data mode')).toBeNull();
+  expect(screen.getByRole('link', { name: 'Settings' }).getAttribute('href')).toBe('#/settings');
+  await navigate('settings');
   await act(async () => { fireEvent.change(screen.getByLabelText('Stored data mode'), { target: { value: mode } }); });
   await navigate('todo');
 }
@@ -71,6 +74,21 @@ it('creates varied dated examples with valid inline references and no future his
       return value;
     });
   }
+});
+
+it('populates book covers and dated page progress without resetting later reading edits', () => {
+  const { routines } = createDemoData('2026-11-18');
+  expect(isRoutineData(routines)).toBe(true);
+  expect(routines.books).toHaveLength(3);
+  expect(routines.books.every(book => book.coverUrl && book.isbn)).toBe(true);
+  for (const book of routines.books.filter(book => book.status !== 'want-to-read')) {
+    const logs = routines.checkIns.filter(log => log.bookId === book.id).sort((a, b) => a.date.localeCompare(b.date));
+    expect(logs.length).toBeGreaterThan(1);
+    expect(logs.every((log, index) => log.page! > (logs[index - 1]?.page ?? 0) && log.page! <= book.pages && log.minutes! > 0)).toBe(true);
+    if (book.status === 'finished') expect(logs.at(-1)?.page).toBe(book.pages);
+  }
+  routines.checkIns.push({ routineId: 'read', date: '2026-11-18', status: 'done', bookId: 'piranesi', page: 250, minutes: 10 });
+  expect(demoBookHistory(routines)).toBe(routines);
 });
 
 it('saves journal, workout, and simulator edits only to their selected mode', () => {

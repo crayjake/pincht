@@ -1,10 +1,10 @@
 import { JOURNAL_KEY } from '../components/home/journal-storage.ts';
 import { ROUTINES_KEY } from '../routines/data.ts';
 import { SESSION_KEY } from '../workouts/storage.ts';
-import { createDemoData, refreshDemoClimbs } from './demo.ts';
+import { createDemoData, demoBookHistory, refreshDemoClimbs } from './demo.ts';
 import { DATA_MODE_KEY, dataKey, getDataMode, type DataMode, type DataStore } from './mode.ts';
 import { clearStorageErrors } from './storage.ts';
-import { isDays } from './validation.ts';
+import { isDays, isRoutineData } from './validation.ts';
 
 export function prepareDataMode(mode: DataMode, store: DataStore = localStorage, today?: string) {
   if (mode !== 'demo') return;
@@ -13,6 +13,14 @@ export function prepareDataMode(mode: DataMode, store: DataStore = localStorage,
     const keyForMode = dataKey(key, store, mode);
     if (store.getItem(keyForMode) === null) store.setItem(keyForMode, JSON.stringify(value));
   }
+  const routinesKey = dataKey(ROUTINES_KEY, store, mode);
+  try {
+    const routines: unknown = JSON.parse(store.getItem(routinesKey)!);
+    if (isRoutineData(routines)) {
+      const updated = demoBookHistory(routines);
+      if (updated !== routines) store.setItem(routinesKey, JSON.stringify(updated));
+    }
+  } catch { /* Leave unreadable stored data intact. */ }
   const journalKey = dataKey(JOURNAL_KEY, store, mode);
   let days: unknown;
   try { days = JSON.parse(store.getItem(journalKey)!); }

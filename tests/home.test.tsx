@@ -117,6 +117,7 @@ describe('Today and journal flows', () => {
     await click(/^\d+ records$/, written);
     expect(written.getByRole('region', { name: 'Day records' })).toBeTruthy();
     await navigate();
+    await act(async () => { window.history.replaceState(null, '', screen.getByRole('link', { name: 'All' }).getAttribute('href')!); window.dispatchEvent(new HashChangeEvent('hashchange')); });
     expect(screen.getByRole('link', { name: 'Rest notes' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Remembering a climb' })).toBeTruthy();
   });
@@ -335,7 +336,7 @@ describe('Today and journal flows', () => {
     render(<Home screen="today" />);
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link').map(link => link.getAttribute('aria-label'))).toEqual(['Journal', 'Do', 'Library']);
     expect(screen.queryByRole('img', { name: '0 of 3 workouts' })).toBeNull();
-    expect(within(screen.getByRole('region', { name: 'This week' })).getByRole('link', { name: /^Train.*0 of 3 this week/ }).getAttribute('href')).toBe('#/train/pull-ups-3x5');
+    expect(within(screen.getByRole('region', { name: 'This week' })).getByRole('link', { name: /^Train.*0 of 3/ }).getAttribute('href')).toBe('#/train/pull-ups-3x5');
     await click('Complete Read for today');
     expect(saved().checkIns.find(c => c.routineId === 'read' && c.date === '2026-11-16')).toMatchObject({ minutes: 20, bookId: 'piranesi' });
     expect(saved().checkIns.find(c => c.routineId === 'read' && c.date === '2026-11-16')?.page).toBeUndefined();

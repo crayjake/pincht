@@ -5,6 +5,7 @@ import { localDate } from '../components/home/journal-data';
 import { bookPage, type Book, type RoutineData } from '../routines/data';
 import { bookDetails, searchBooks, type BookMatch } from './catalog';
 import { scanBookIsbn } from './scanner';
+import { BookCover } from './book-cover';
 
 export function BookSelector({ data, onChange, onSelect, onClose, initialTitle = '' }: { data: RoutineData; onChange: (data: RoutineData) => void | boolean; onSelect: (id: string, page: number) => void; onClose: () => void; initialTitle?: string }) {
   const [query, setQuery] = useState(initialTitle);
@@ -49,39 +50,43 @@ export function BookSelector({ data, onChange, onSelect, onClose, initialTitle =
       {error && <p role="alert">{error}</p>}
       {busy && <p className="mono muted" role="status">Looking up books…</p>}
       {searched && !busy && <p className="eyebrow" role="status">{results.length ? `${results.length} results` : 'No books found'}</p>}
-      {!!results.length && <div className="book-search-results">{results.map(match => <button className="book-list-row" key={match.key} disabled={busy} onClick={() => choose(match)}><span className="book-cover" aria-hidden="true" /><span><strong>{match.title}</strong><span>{match.author}</span><small>{[match.pages ? `${match.pages} pages` : '', match.year].filter(Boolean).join(' · ')}</small></span><Icon name="back" /></button>)}</div>}
+      {!!results.length && <div className="book-search-results">{results.map(match => <button className="book-list-row" key={match.key} disabled={busy} onClick={() => choose(match)}><BookCover book={match} /><span><strong>{match.title}</strong><span>{match.author}</span><small>{[match.pages ? `${match.pages} pages` : '', match.year].filter(Boolean).join(' · ')}</small></span><Icon name="back" /></button>)}</div>}
       <button className="text-action full-width" type="button" onClick={manual}>Can’t find it? Add manually</button>
-      {existingBooks.length > 0 && <><h3 className="eyebrow">Your library</h3><div className="book-list">{existingBooks.map(book => <button className="book-list-row" key={book.id} onClick={() => { try { if (onChange({ ...data, currentBookId: book.id, books: data.books.map(value => value.id === book.id ? { ...value, status: 'reading', started: value.started ?? localDate() } : value) }) !== false) onSelect(book.id, bookPage(data, book.id)); else setError('The book could not be selected. Please try again.'); } catch(error) { setError((error as Error).message); } }}><Icon name="book" /><span><strong>{book.title}</strong><small>{book.author} · {bookPage(data, book.id)} / {book.pages}</small></span>{data.currentBookId === book.id && <Icon name="check" />}</button>)}</div></>}
+      {existingBooks.length > 0 && <><h3 className="eyebrow">Your library</h3><div className="book-list">{existingBooks.map(book => <button className="book-list-row" key={book.id} onClick={() => { try { if (onChange({ ...data, currentBookId: book.id, books: data.books.map(value => value.id === book.id ? { ...value, status: 'reading', started: value.started ?? localDate() } : value) }) !== false) onSelect(book.id, bookPage(data, book.id)); else setError('The book could not be selected. Please try again.'); } catch(error) { setError((error as Error).message); } }}><BookCover book={book} /><span><strong>{book.title}</strong><small>{book.author} · {bookPage(data, book.id)} / {book.pages}</small></span>{data.currentBookId === book.id && <Icon name="check" />}</button>)}</div></>}
       {!!results.length && <p className="sheet-hint">Book data from Open Library. Check the edition’s page count before adding.</p>}
     </div>}
   </Sheet>;
 }
 
-function BookDetails({ match, data, onChange, onSelect, onBack }: { match: BookMatch; data: RoutineData; onChange: (data: RoutineData) => void | boolean; onSelect: (id: string, page: number) => void; onBack: () => void }) {
+export function BookEditSheet({ book, data, onChange, onClose }: { book: Book; data: RoutineData; onChange: (data: RoutineData) => void | boolean; onClose: () => void }) {
+  return <Sheet title="Edit book" onClose={onClose}><BookDetails initial={book} match={{ key: book.catalogKey ?? '', title: book.title, author: book.author, pages: book.pages, isbn: book.isbn, coverUrl: book.coverUrl }} data={data} onChange={onChange} onSelect={onClose} /></Sheet>;
+}
+
+function BookDetails({ match, initial, data, onChange, onSelect, onBack }: { match: BookMatch; initial?: Book; data: RoutineData; onChange: (data: RoutineData) => void | boolean; onSelect: (id: string, page: number) => void; onBack?: () => void }) {
   const [title, setTitle] = useState(match.title), [author, setAuthor] = useState(match.author);
   const [pages, setPages] = useState(match.pages ? String(match.pages) : ''), [page, setPage] = useState('0');
-  const [status, setStatus] = useState<NonNullable<Book['status']>>('reading'), [started, setStarted] = useState(localDate());
-  const [useForRead, setUseForRead] = useState(true), [error, setError] = useState('');
+  const [status, setStatus] = useState<NonNullable<Book['status']>>(initial?.status ?? (initial && bookPage(data, initial.id) === initial.pages ? 'finished' : 'reading')), [started, setStarted] = useState(initial?.started ?? localDate());
+  const [useForRead, setUseForRead] = useState(initial ? data.currentBookId === initial.id : true), [error, setError] = useState('');
   function changeStatus(value: NonNullable<Book['status']>) { setStatus(value); setUseForRead(value === 'reading'); setPage(value === 'finished' ? pages : '0'); }
   return <form className="entry-form book-details-form" onSubmit={event => {
     event.preventDefault();
-    const count = Number(pages), current = status === 'finished' ? count : status === 'want-to-read' ? 0 : Number(page);
+    const count = Number(pages), current = initial ? bookPage(data, initial.id) : status === 'finished' ? count : status === 'want-to-read' ? 0 : Number(page);
     if (!title.trim() || !Number.isInteger(count) || count < 1 || !Number.isInteger(current) || current < 0 || current > count) { setError('Enter a title, total pages, and a current page within the book.'); return; }
-    const duplicate = match.isbn && data.books.find(book => book.isbn === match.isbn);
+    const duplicate = match.isbn && data.books.find(book => book.id !== initial?.id && book.isbn === match.isbn);
     if (duplicate) { setError('This edition is already in your library. Go back and select it from Your library.'); return; }
-    const book: Book = { id: crypto.randomUUID(), title: title.trim(), author: author.trim(), pages: count, initialPage: current, status,
-      ...(status !== 'want-to-read' && started ? { started } : {}), ...(match.isbn ? { isbn: match.isbn } : {}), ...(match.key ? { catalogKey: match.key } : {}) };
-    try { if (onChange({ ...data, books: [...data.books, book], currentBookId: useForRead ? book.id : data.currentBookId }) !== false) onSelect(book.id, current); else setError('The book could not be saved. Please try again.'); }
+    const book: Book = { ...initial, id: initial?.id ?? crypto.randomUUID(), title: title.trim(), author: author.trim(), pages: count, initialPage: initial?.initialPage ?? current, status,
+      started: status !== 'want-to-read' && started ? started : undefined, ...(match.isbn ? { isbn: match.isbn } : {}), ...(match.key ? { catalogKey: match.key } : {}), ...(match.coverUrl ? { coverUrl: match.coverUrl } : {}) };
+    try { if (onChange({ ...data, books: initial ? data.books.map(item => item.id === initial.id ? book : item) : [...data.books, book], currentBookId: useForRead && status === 'reading' ? book.id : data.currentBookId === initial?.id ? '' : data.currentBookId }) !== false) onSelect(book.id, current); else setError('The book could not be saved. Please try again.'); }
     catch (error) { setError((error as Error).message); }
   }}>
-    <button type="button" className="text-action" onClick={onBack}>‹ Search books</button>
+    {onBack && <button type="button" className="text-action" onClick={onBack}>‹ Search books</button>}
     <label>Title<input required value={title} onChange={event => setTitle(event.target.value)} /></label>
     <label>Author<input value={author} onChange={event => setAuthor(event.target.value)} /></label>
     <fieldset className="book-status"><legend className="eyebrow">Status</legend><div className="book-status-options">{([['want-to-read', 'Want to read'], ['reading', 'Reading'], ['finished', 'Finished']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={status === value} onClick={() => changeStatus(value)}>{label}</button>)}</div></fieldset>
-    <div className="date-fields"><label>Total pages<input type="number" required min="1" step="1" value={pages} onChange={event => { setPages(event.target.value); if (status === 'finished') setPage(event.target.value); }} /></label><label>Currently on page<input type="number" required min="0" step="1" max={pages || undefined} value={status === 'finished' ? pages : page} disabled={status !== 'reading'} onChange={event => setPage(event.target.value)} /></label></div>
+    <div className="date-fields"><label>Total pages<input type="number" required min="1" step="1" value={pages} onChange={event => { setPages(event.target.value); if (status === 'finished') setPage(event.target.value); }} /></label>{!initial && <label>Currently on page<input type="number" required min="0" step="1" max={pages || undefined} value={status === 'finished' ? pages : page} disabled={status !== 'reading'} onChange={event => setPage(event.target.value)} /></label>}</div>
     {status !== 'want-to-read' && <label>Started<input type="date" max={localDate()} value={started} onChange={event => setStarted(event.target.value)} /></label>}
     <label className="metric-choice"><span>Use for the Read routine<small className="muted">Logging reading updates this book</small></span><input type="checkbox" checked={useForRead} disabled={status !== 'reading'} onChange={event => setUseForRead(event.target.checked)} /></label>
     {error && <p role="alert">{error}</p>}
-    <button type="submit" className="primary-button full-width">Add to library</button>
+    <button type="submit" className="primary-button full-width">{initial ? 'Save book' : 'Add to library'}</button>
   </form>;
 }

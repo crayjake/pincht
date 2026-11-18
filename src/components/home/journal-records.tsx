@@ -4,9 +4,10 @@ import type { CSSProperties } from 'react';
 import { duration, stageTotals, type JournalRecord, type PillResource, type SleepNight } from './journal-data';
 import { Icon } from './journal-icons';
 import { Holds } from './journal-widgets';
+import { recordHref } from './library-data';
 
 export function RecordPill({ record, onOpen }: { record: PillResource; onOpen: (record: PillResource) => void }) {
-  return <a className="record-pill" data-category={record.kind === 'chart' ? record.category : record.kind} href={`#record-${record.id}`} onClick={event => { event.preventDefault(); onOpen(record); }}>{record.title}</a>;
+  return <a className="record-pill" data-category={record.kind === 'chart' ? record.category : record.kind} href={recordHref(record)} onClick={event => { event.preventDefault(); onOpen(record); }}>{record.title}</a>;
 }
 export function Hypnogram({ night, compact = false }: { night: SleepNight; compact?: boolean }) {
   const totals = stageTotals(night);

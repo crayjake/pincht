@@ -1,10 +1,17 @@
 export interface BookMatch {
-  key: string; title: string; author: string; pages?: number; year?: string; isbn?: string;
+  key: string; title: string; author: string; pages?: number; year?: string; isbn?: string; coverUrl?: string;
 }
 type Json = Record<string, any>;
 const positivePages = (value: unknown): number | undefined => typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
 const object = (value: unknown): Json => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const isbns = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').flatMap(item => normaliseIsbn(item) ?? []) : [];
+const cover = (value: unknown): string | undefined => typeof value === 'number' && value > 0 ? `https://covers.openlibrary.org/b/id/${value}-M.jpg` : undefined;
+export function bookCoverUrl(book: { coverUrl?: string; isbn?: string; catalogKey?: string; key?: string }) {
+  if (book.coverUrl) return book.coverUrl;
+  if (book.isbn) return `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(book.isbn)}-M.jpg?default=false`;
+  const key = book.catalogKey ?? book.key;
+  return key && /^\/books\/OL\d+M$/.test(key) ? `https://covers.openlibrary.org/b/olid/${key.split('/').at(-1)}-M.jpg?default=false` : undefined;
+}
 
 /** Accept ISBNs, never a non-book EAN or a barcode with an invalid check digit. */
 export function normaliseIsbn(value: string): string | undefined {
@@ -43,7 +50,7 @@ export function parseSearchResults(value: unknown): BookMatch[] {
     return [{ key, title: typeof edition.title === 'string' ? edition.title : work.title,
       author: Array.isArray(work.author_name) ? work.author_name.filter((v: unknown) => typeof v === 'string').join(', ') : '',
       pages: positivePages(edition.number_of_pages), year: typeof edition.publish_date === 'string' ? edition.publish_date : typeof work.first_publish_year === 'number' ? String(work.first_publish_year) : undefined,
-      isbn: isbns(edition.isbn)[0] }];
+      isbn: isbns(edition.isbn)[0], ...(cover(edition.cover_i ?? work.cover_i) ? { coverUrl: cover(edition.cover_i ?? work.cover_i) } : {}) }];
   }).filter((match, index, matches) => matches.findIndex(value => value.key === match.key) === index);
 }
 const cache = new Map<string, BookMatch[]>();
@@ -57,9 +64,9 @@ export async function searchBooks(query: string, signal?: AbortSignal): Promise<
   if (isbn) {
     const data = await request(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`, signal);
     const book = object(data[`ISBN:${isbn}`]);
-    matches = typeof book.title === 'string' ? [{ key: typeof book.key === 'string' ? book.key : `ISBN:${isbn}`, title: book.title, author: Array.isArray(book.authors) ? book.authors.map((a: unknown) => object(a).name).filter((name: unknown) => typeof name === 'string').join(', ') : '', pages: positivePages(book.number_of_pages), year: typeof book.publish_date === 'string' ? book.publish_date : undefined, isbn }] : [];
+    matches = typeof book.title === 'string' ? [{ key: typeof book.key === 'string' ? book.key : `ISBN:${isbn}`, title: book.title, author: Array.isArray(book.authors) ? book.authors.map((a: unknown) => object(a).name).filter((name: unknown) => typeof name === 'string').join(', ') : '', pages: positivePages(book.number_of_pages), year: typeof book.publish_date === 'string' ? book.publish_date : undefined, isbn, ...(typeof object(book.cover).medium === 'string' ? { coverUrl: object(book.cover).medium.replace(/^http:/, 'https:') } : {}) }] : [];
   } else {
-    const params = new URLSearchParams({ q: term, limit: '12', lang: 'en', fields: 'key,title,author_name,first_publish_year,editions,editions.key,editions.title,editions.isbn,editions.number_of_pages,editions.publish_date' });
+    const params = new URLSearchParams({ q: term, limit: '12', lang: 'en', fields: 'key,title,author_name,first_publish_year,cover_i,editions,editions.key,editions.title,editions.isbn,editions.number_of_pages,editions.publish_date,editions.cover_i' });
     matches = parseSearchResults(await request(`https://openlibrary.org/search.json?${params}`, signal));
   }
   // Small in-memory cache only; the user's library is stored separately and works offline.
@@ -72,5 +79,6 @@ export async function bookDetails(match: BookMatch, signal?: AbortSignal): Promi
   const edition = await request(`https://openlibrary.org${match.key}.json`, signal);
   return { ...match, title: typeof edition.title === 'string' ? edition.title : match.title,
     pages: positivePages(edition.number_of_pages), year: typeof edition.publish_date === 'string' ? edition.publish_date : match.year,
-    isbn: isbns(edition.isbn_13)[0] ?? isbns(edition.isbn_10)[0] ?? match.isbn };
+    isbn: isbns(edition.isbn_13)[0] ?? isbns(edition.isbn_10)[0] ?? match.isbn,
+    ...(cover(edition.covers?.[0]) ? { coverUrl: cover(edition.covers[0]) } : {}) };
 }

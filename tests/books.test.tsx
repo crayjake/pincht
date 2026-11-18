@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { BookSelector } from '../src/books/book-selector';
+import { BookEditSheet, BookSelector } from '../src/books/book-selector';
 import { bookDetails, normaliseIsbn, parseSearchResults, searchBooks } from '../src/books/catalog';
 import { scanBookIsbn } from '../src/books/scanner';
 import { createRoutines, type RoutineData } from '../src/routines/data';
@@ -33,15 +33,15 @@ it('parses partial catalogue responses without inventing a page count', () => {
   expect(results).toEqual([{ key: '/books/OL2M', title: 'Test', author: 'Writer', pages: undefined, year: '2020', isbn: '9780306406157' }]);
 });
 it('looks up an ISBN directly and retrieves pages from the selected edition', async () => {
-  const fetch = vi.fn().mockResolvedValueOnce(json({ 'ISBN:9780306406157': { title: 'Piranesi', authors: [{ name: 'Susanna Clarke' }], number_of_pages: 272, publish_date: '2020' } })).mockResolvedValueOnce(json({ title: 'Large print', number_of_pages: 352, isbn_13: null, isbn_10: [false] }));
+  const fetch = vi.fn().mockResolvedValueOnce(json({ 'ISBN:9780306406157': { title: 'Piranesi', authors: [{ name: 'Susanna Clarke' }], number_of_pages: 272, publish_date: '2020', cover: { medium: 'https://covers.openlibrary.org/b/id/123-M.jpg' } } })).mockResolvedValueOnce(json({ title: 'Large print', number_of_pages: 352, isbn_13: null, isbn_10: [false], covers: [456] }));
   vi.stubGlobal('fetch', fetch);
   const results = await searchBooks('9780306406157');
   expect(fetch.mock.calls[0][0]).toContain('bibkeys=ISBN:9780306406157');
-  expect(results[0]).toMatchObject({ pages: 272, author: 'Susanna Clarke', isbn: '9780306406157' });
-  expect(await bookDetails({ ...results[0], key: '/books/OL123M' })).toMatchObject({ title: 'Large print', pages: 352, isbn: '9780306406157' });
+  expect(results[0]).toMatchObject({ pages: 272, author: 'Susanna Clarke', isbn: '9780306406157', coverUrl: 'https://covers.openlibrary.org/b/id/123-M.jpg' });
+  expect(await bookDetails({ ...results[0], key: '/books/OL123M' })).toMatchObject({ title: 'Large print', pages: 352, isbn: '9780306406157', coverUrl: 'https://covers.openlibrary.org/b/id/456-M.jpg' });
 });
 it('searches, selects an edition, and saves its editable metadata to the canonical library', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json({ docs: [{ key: '/works/OL900W', title: 'Edition test', author_name: ['Writer'], editions: { docs: [{ key: '/books/OL901M' }] } }] })).mockResolvedValueOnce(json({ title: 'Edition test', number_of_pages: 300, isbn_13: ['9780306406157'] })));
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json({ docs: [{ key: '/works/OL900W', title: 'Edition test', author_name: ['Writer'], cover_i: 123, editions: { docs: [{ key: '/books/OL901M' }] } }] })).mockResolvedValueOnce(json({ title: 'Edition test', number_of_pages: 300, isbn_13: ['9780306406157'], covers: [456] })));
   const onChange = vi.fn(), onSelect = vi.fn();
   render(<BookSelector data={createRoutines('2026-11-18')} onChange={onChange} onSelect={onSelect} onClose={vi.fn()} />);
   await change('Search books by title, author or ISBN', 'edition search test');
@@ -50,7 +50,7 @@ it('searches, selects an edition, and saves its editable metadata to the canonic
   expect((screen.getByLabelText('Total pages') as HTMLInputElement).value).toBe('300');
   await change('Currently on page', '12'); await click('Add to library');
   const data: RoutineData = onChange.mock.calls[0][0];
-  expect(data.books[0]).toMatchObject({ title: 'Edition test', pages: 300, initialPage: 12, status: 'reading', isbn: '9780306406157', catalogKey: '/books/OL901M', started: '2026-11-18' });
+  expect(data.books[0]).toMatchObject({ title: 'Edition test', pages: 300, initialPage: 12, status: 'reading', isbn: '9780306406157', catalogKey: '/books/OL901M', started: '2026-11-18', coverUrl: 'https://covers.openlibrary.org/b/id/456-M.jpg' });
   expect(data.currentBookId).toBe(data.books[0].id);
   expect(isRoutineData(data)).toBe(true);
   expect(onSelect).toHaveBeenCalledWith(data.books[0].id, 12);
@@ -88,4 +88,33 @@ it('looks up scanned ISBNs under StrictMode and aborts the camera when the sheet
   expect((screen.getByLabelText('Search books by title, author or ISBN') as HTMLInputElement).value).toBe('9780140328721');
   const signal = vi.mocked(scanBookIsbn).mock.calls.at(-1)![0]!;
   view.unmount(); expect(signal.aborted).toBe(true);
+});
+
+it('edits a book in place without changing its reading history or catalogue identity', async () => {
+  const data = createRoutines('2026-11-18');
+  const book = { id: 'my-book', title: 'Original', author: 'Author', pages: 300, initialPage: 12, status: 'reading' as const, isbn: '9780306406157', catalogKey: '/books/OL901M', started: '2026-11-10' };
+  data.books = [book]; data.currentBookId = book.id;
+  data.checkIns = [{ routineId: 'read', date: '2026-11-17', status: 'done', bookId: book.id, page: 80, minutes: 20 }];
+  const onChange = vi.fn(), onClose = vi.fn();
+  render(<BookEditSheet book={book} data={data} onChange={onChange} onClose={onClose} />);
+  await change('Title', 'Corrected title'); await change('Author', 'Corrected author'); await change('Total pages', '320');
+  await click('Save book');
+  const saved: RoutineData = onChange.mock.calls[0][0];
+  expect(saved.books).toEqual([{ ...book, title: 'Corrected title', author: 'Corrected author', pages: 320 }]);
+  expect(saved.checkIns).toEqual(data.checkIns);
+  expect(saved.currentBookId).toBe(book.id);
+  expect(onClose).toHaveBeenCalled();
+});
+it('keeps an edited book open on failed save and rejects totals below logged progress', async () => {
+  const data = createRoutines('2026-11-18');
+  const book = { id: 'my-book', title: 'Original', author: 'Author', pages: 300, initialPage: 12, status: 'reading' as const };
+  data.books = [book]; data.currentBookId = book.id;
+  data.checkIns = [{ routineId: 'read', date: '2026-11-17', status: 'done', bookId: book.id, page: 80 }];
+  const onChange = vi.fn().mockReturnValue(false), onClose = vi.fn();
+  render(<BookEditSheet book={book} data={data} onChange={onChange} onClose={onClose} />);
+  await change('Total pages', '60'); await click('Save book');
+  expect(onChange).not.toHaveBeenCalled();
+  await change('Total pages', '320'); await click('Save book');
+  expect(screen.getByRole('alert').textContent).toContain('could not be saved');
+  expect(onClose).not.toHaveBeenCalled();
 });

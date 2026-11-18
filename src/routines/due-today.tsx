@@ -41,9 +41,9 @@ export function DueToday({ data, recentSkips, sessions, onChange, onOpen, kinds,
     const plans = routinePlans(r).flatMap(id => loadWorkoutPlans().filter(plan => plan.id === id));
     const open = workouts.includes(r.id);
     const detail = r.planSchedule ? rehabItems.find(item => item.id === r.id)?.detail : undefined;
-    const meta = detail ?? (isWeekly ? `${count} of ${r.target} this week · ${comparatorLabel(r)} ${r.target}` : r.kind === 'reading' ? `daily · ${book ? `${book.title} p.${bookPage(data, book.id)}` : 'Add your book'}` : r.kind === 'alcohol' ? `day ${freeStreak(data, r, today)} · ${weeklyDrinks(data, today)} of ${r.target} drinks this week` : done(r) ? 'Logged today' : 'Due today');
+    const meta = isWeekly && variant === 'todo' ? `${r.comparator === 'at-most' ? '≤' : r.comparator === 'exactly' ? '=' : '≥'} ${r.target} · ${count} of ${r.target}` : detail ?? (isWeekly ? `${count} of ${r.target} this week · ${comparatorLabel(r)} ${r.target}` : r.kind === 'reading' ? `daily · ${book ? `${book.title} p.${bookPage(data, book.id)}` : 'Add your book'}` : r.kind === 'alcohol' ? `day ${freeStreak(data, r, today)} · ${weeklyDrinks(data, today)} of ${r.target} drinks this week` : done(r) ? 'Logged today' : 'Due today');
     const breakdownId = `${itemsId}-${r.id}`;
-    return <div key={r.id} className="due-item">
+    return <div key={r.id} className={`due-item${isWeekly && variant === 'todo' ? ' todo-weekly-item' : ''}`}>
       <div className={`due-row${isWeekly ? ' weekly-training' : ''}`}>
         {workout ? <a className="routine-ring rehab-ring" href={routineLink(r)} aria-label={`Open ${r.name}`}><Icon name={done(r) ? 'check' : 'train'} size={18} /></a> : <button className="routine-ring" aria-label={checkIn(data, r.id, today)?.status === 'skipped' ? `Undo skipping ${r.name}` : `${done(r) ? 'Clear' : 'Complete'} ${r.name} for today`} aria-pressed={done(r)} onClick={() => quick(r)}><span>{done(r) && <Icon name="check" size={16} />}</span></button>}
         {workout ? <a className="due-body" href={routineLink(r)}><strong>{r.name}</strong><small>{meta}</small></a> : <button className="due-body" onClick={() => onOpen(r, today)}><strong>{r.name}</strong><small>{meta}</small></button>}

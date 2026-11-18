@@ -30,6 +30,15 @@ export function saveView(view: JournalView) {
   writeStored(dataKey(VIEWS_KEY), updated.map(v => next.isDefault && v.id !== next.id ? { ...v, isDefault: false } : v), defaultViews(), isViews);
 }
 export const defaultView = () => loadViews().find(view => view.isDefault) ?? loadViews()[0];
+const LAST_VIEW_KEY = 'pincht.journal.last-view';
+const isViewId = (value: unknown): value is string => typeof value === 'string';
+export function lastJournalView() {
+  const id = readStored(dataKey(LAST_VIEW_KEY), '', isViewId);
+  return loadViews().find(view => view.id === id) ?? defaultView();
+}
+export function rememberJournalView(id: string) {
+  writeStored(dataKey(LAST_VIEW_KEY), id, '', isViewId);
+}
 export function isViewDay(day: Day, view: JournalView) {
   if (!view.tags.length) return true;
   return view.tags.some(tag => day.entry?.tags?.includes(tag) || (tag === 'reading' ? day.records.some(r => r.kind === 'habit' && r.metric.endsWith('min')) : day.records.some(r => r.kind === tag) || tag === 'sleep' && day.metrics.sleep !== undefined));

@@ -42,7 +42,7 @@ export function isRoutineData(value: unknown): value is RoutineData {
     && optional(r.workoutPlanIds, strings) && optional(r.days, d => Array.isArray(d) && d.every(n => integer(n) && n <= 6))
     && optional(r.tags, t => strings(t) && t.every(tag => [...categories,'reading'].includes(tag)))
     && optional(r.planSchedule, p => p === 'pulley' || p === 'wrist') && optional(r.comparator, c => ['at-least','exactly','at-most'].includes(String(c))))
-    && Array.isArray(value.books) && value.books.every((b: unknown) => object(b) && text(b.id) && text(b.title) && text(b.author) && integer(b.pages) && b.pages > 0 && integer(b.initialPage) && b.initialPage <= b.pages && optional(b.status, s => ['want-to-read','reading','finished'].includes(String(s))) && optional(b.started, date) && optional(b.isbn, text) && optional(b.catalogKey, text))
+    && Array.isArray(value.books) && value.books.every((b: unknown) => object(b) && text(b.id) && text(b.title) && text(b.author) && integer(b.pages) && b.pages > 0 && integer(b.initialPage) && b.initialPage <= b.pages && optional(b.status, s => ['want-to-read','reading','finished'].includes(String(s))) && optional(b.started, date) && optional(b.isbn, text) && optional(b.catalogKey, text) && optional(b.coverUrl, text))
     && text(value.currentBookId) && date(value.lastVisit) && object(value.widgets) && typeof value.widgets.rehab === 'boolean' && typeof value.widgets.sleep === 'boolean'
     && Array.isArray(value.checkIns) && value.checkIns.every((c: unknown) => object(c) && text(c.routineId) && date(c.date) && ['done','skipped'].includes(c.status)
       && optional(c.minutes, integer) && optional(c.page, integer) && optional(c.drinks, integer) && optional(c.bookId, text));

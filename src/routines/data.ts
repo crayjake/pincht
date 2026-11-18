@@ -13,7 +13,7 @@ export interface Routine {
   workoutPlanIds?: string[]; tags?: (Category | 'reading')[]; count?: 'workouts' | 'drinks';
   planSchedule?: 'pulley' | 'wrist';
 }
-export interface Book { id: string; title: string; author: string; pages: number; initialPage: number; status?: 'want-to-read' | 'reading' | 'finished'; started?: string; isbn?: string; catalogKey?: string }
+export interface Book { id: string; title: string; author: string; pages: number; initialPage: number; status?: 'want-to-read' | 'reading' | 'finished'; started?: string; isbn?: string; catalogKey?: string; coverUrl?: string }
 export interface CheckIn {
   routineId: string; date: string; status: 'done' | 'skipped'; reason?: string;
   minutes?: number; bookId?: string; page?: number; drinks?: number;

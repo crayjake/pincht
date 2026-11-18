@@ -1,6 +1,7 @@
-export function Icon({ name, size = 20 }: { name: 'settings' | 'barcode' | 'search' | 'filter' | 'plus' | 'close' | 'note' | 'chevron' | 'more' | 'today' | 'train' | 'climbs' | 'metrics' | 'back' | 'check' | 'minus' | 'book' | 'play' | 'library' | 'bolt' | 'sleep' | 'drink' | 'weight' | 'goal'; size?: number }) {
+export function Icon({ name, size = 20 }: { name: 'edit' | 'settings' | 'barcode' | 'search' | 'filter' | 'plus' | 'close' | 'note' | 'chevron' | 'more' | 'today' | 'train' | 'climbs' | 'metrics' | 'back' | 'check' | 'minus' | 'book' | 'play' | 'library' | 'bolt' | 'sleep' | 'drink' | 'weight' | 'goal'; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={name === 'plus' ? 2 : 1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {name === 'settings' && <><path d="m9 3-1 3-3 1v3l-2 2 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-2V7l-3-1-1-3z" /><circle cx="12" cy="12" r="3" /></>}
+    {name === 'settings' && <><path d="M9.7 4.3 10.2 2h3.6l.5 2.3 2.3 1.3 2.2-.7 1.8 3.2-1.7 1.6v2.6l1.7 1.6-1.8 3.2-2.2-.7-2.3 1.3-.5 2.3h-3.6l-.5-2.3-2.3-1.3-2.2.7-1.8-3.2 1.7-1.6V9.7L3.4 8.1l1.8-3.2 2.2.7z" transform="translate(0 1)" /><circle cx="12" cy="12" r="3" /></>}
+    {name === 'edit' && <><path d="m14.5 4.5 5 5M4 20l4.5-1L20 7.5a2.1 2.1 0 0 0-3-3L5.5 16z" /></>}
     {name === 'barcode' && <path d="M4 7V4h3m10 0h3v3M4 17v3h3m10 0h3v-3M8 8v8m3-8v8m3-8v8m3-8v8" />}
     {name === 'search' && <><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></>}
     {name === 'filter' && <><path d="M4 7h9M19 7h1M4 17h1M11 17h9" /><circle cx="16" cy="7" r="2.2" /><circle cx="8" cy="17" r="2.2" /></>}

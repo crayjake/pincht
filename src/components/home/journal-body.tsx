@@ -10,6 +10,7 @@ import { widgetNames, type WidgetId } from './journal-views';
 import Suggestion, { exitSuggestion } from '@tiptap/suggestion';
 import type { PillResource, RichBody } from './journal-data';
 import { JournalToolbar } from './journal-toolbar';
+import { recordHref } from './library-data';
 
 interface PickerState { query: string; range: Range }
 export type CreatableRecordKind = 'climb' | 'training' | 'goal' | 'habit';
@@ -42,7 +43,8 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
     addAttributes() { return { id: { default: null, renderHTML: () => ({}) }, label: { default: '', renderHTML: () => ({}) }, category: { default: 'climb', renderHTML: () => ({}) } }; },
     parseHTML() { return [{ tag: 'a[data-record-id]', getAttrs: node => ({ id: node.getAttribute('data-record-id'), label: node.textContent, category: node.getAttribute('data-category') }) }]; },
     renderHTML({ node, HTMLAttributes }) {
-      return ['a', mergeAttributes(HTMLAttributes, { class: 'record-pill', 'data-record-id': node.attrs.id, 'data-category': node.attrs.category, href: `#record-${node.attrs.id}`, contenteditable: 'false', tabindex: '0' }), node.attrs.label];
+      const resource = callbacks.current.resources.find(record => record.id === node.attrs.id);
+      return ['a', mergeAttributes(HTMLAttributes, { class: 'record-pill', 'data-record-id': node.attrs.id, 'data-category': node.attrs.category, href: resource ? recordHref(resource) : undefined, contenteditable: 'false', tabindex: '0' }), node.attrs.label];
     },
     renderText({ node }) { return node.attrs.label; },
     addProseMirrorPlugins() {
@@ -80,11 +82,15 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
     onFocus: () => setActive(true),
     editorProps: {
       attributes: { class: 'journal-prose', 'aria-label': `${label}. Type @ to link a record.`, ...(placeholder ? { 'data-placeholder': placeholder, 'aria-placeholder': placeholder } : {}), role: 'textbox', 'aria-multiline': 'true', spellcheck: 'true' },
-      handleClick: (_view, _pos, event) => {
-        const anchor = (event.target as HTMLElement).closest('a[data-record-id]');
-        const resource = callbacks.current.resources.find(r => r.id === anchor?.getAttribute('data-record-id'));
-        if (!resource) return false;
-        event.preventDefault(); callbacks.current.onOpen(resource); return true;
+      handleDOMEvents: {
+        click: (_view, event) => {
+          const anchor = (event.target as HTMLElement).closest('a[data-record-id]');
+          if (!anchor) return false;
+          event.preventDefault();
+          const resource = callbacks.current.resources.find(r => r.id === anchor.getAttribute('data-record-id'));
+          if (resource) callbacks.current.onOpen(resource);
+          return true;
+        },
       },
       handleKeyDown: (_view, event) => {
         if (event.key !== 'Enter' || !(event.target instanceof HTMLElement)) return false;

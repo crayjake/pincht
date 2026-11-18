@@ -1,3 +1,4 @@
+import { BookCover } from '../../books/book-cover';
 import { useId, useState, type ReactNode, type PointerEvent } from 'react';
 import { addDays, checkIn, daysBetween, weekStart, type RoutineData } from '../../routines/data';
 import { loadSessions } from '../../workouts/storage';
@@ -84,7 +85,7 @@ export function ViewWidgets({widgets,days,data,loads,goalId}:{widgets:WidgetId[]
   function full(id:WidgetId) {
     let meta:ReactNode,chart:ReactNode;
     if(id==='next')return <section className="full-widget-slot" aria-label="Next up"><NextWorkout data={data} empty/></section>;
-    if(id==='book')return <section className="full-widget book-widget" aria-label="Reading · full width"><a className="widget-book-cover" aria-label="Open current book" href={bookHref}/><div><div className="widget-label"><i data-category="habit"/>Reading</div>{model.book?<><a className="widget-book-title" href={bookHref}>{model.book.title}</a><div className="compact-subline">{model.book.author}</div><div className="book-progress"><div><i style={{width:`${Math.min(100,model.page/model.book.pages*100)}%`}}/></div><span>{model.page} / {model.book.pages}</span></div>{model.rate>0&&<div className="compact-subline">~{Math.round(model.rate)} pages a day · done about {shortDate(addDays(today,Math.ceil((model.book.pages-model.page)/model.rate)),{day:'numeric',month:'short'})}</div>}</>:<Empty><a href={bookHref}>Choose a book ›</a></Empty>}</div></section>;
+    if(id==='book')return <section className="full-widget book-widget" aria-label="Reading · full width"><a className="widget-book-cover" aria-label="Open current book" href={bookHref}>{model.book && <BookCover book={model.book} className="cover-image"/>}</a><div><div className="widget-label"><i data-category="habit"/>Reading</div>{model.book?<><a className="widget-book-title" href={bookHref}>{model.book.title}</a><div className="compact-subline">{model.book.author}</div><div className="book-progress"><div><i style={{width:`${Math.min(100,model.page/model.book.pages*100)}%`}}/></div><span>{model.page} / {model.book.pages}</span></div>{model.rate>0&&<div className="compact-subline">~{Math.round(model.rate)} pages a day · est. {shortDate(addDays(today,Math.ceil((model.book.pages-model.page)/model.rate)),{day:'numeric',month:'short'})}</div>}</>:<Empty><a href={bookHref}>Choose a book ›</a></Empty>}</div></section>;
     if(id==='sends'){
       const sends=model.sends.filter(item=>item.date.startsWith(today.slice(0,4)));
       const grades=[...new Set(sends.map(item=>item.record.metric||'Ungraded'))].sort((a,b)=>Number(a.startsWith('V'))-Number(b.startsWith('V')) || gradeRank(a)-gradeRank(b));
@@ -106,7 +107,7 @@ export function ViewWidgets({widgets,days,data,loads,goalId}:{widgets:WidgetId[]
       const start=addDays(weekStart(today),-77),dates=daysBetween(start,addDays(weekStart(today),6));
       const points=dates.map((date,index)=>({x:42+Math.floor(index/7)*23,y:30+(index%7)*19,label:dateLabel(date),value:date>today?'Upcoming':model.activity(date).join(' · ')||'No activity logged'}));
       chart=<><Chart label="Training calendar" height={160} points={points}>
-        {['M','W','F'].map((name,index)=><text key={name} x="0" y={34+index*38}>{name}</text>)}
+        {['M','T','W','T','F','S','S'].map((name,index)=><text key={index} x="0" y={34+index*19}>{name}</text>)}
         {dates.map((date,index)=>{
           const activity=date>today?[]:model.activity(date),monthDate=addDays(date,3),previous=addDays(monthDate,-7);
           return <g key={date}>

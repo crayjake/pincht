@@ -45,7 +45,20 @@ it('opens Journal without default widgets and with three symbol dock links, with
   expect(dock.every(link => link.textContent === '')).toBe(true);
   expect(screen.getByRole('link', { name: 'Open To-do' }).getAttribute('href')).toBe('#/todo');
   await navigate('todo');
+  expect(screen.getByRole('link', { name: 'Back to Journal' }).getAttribute('href')).toBe('#/journal');
   expect(screen.getByRole('link', { name: 'Routines ›' }).getAttribute('href')).toBe('#/routines');
+});
+it('remembers the selected journal view across dock changes, To-do, and app reopening', async () => {
+  const app = render(<App />);
+  await navigate('view/reading');
+  await navigate('do'); await navigate('journal');
+  expect(screen.getByRole('link', { name: 'Reading' }).getAttribute('aria-current')).toBe('page');
+  await navigate('todo'); await navigate('journal');
+  expect(screen.getByRole('link', { name: 'Reading' }).getAttribute('aria-current')).toBe('page');
+  app.unmount();
+  window.history.replaceState(null, '', '/');
+  render(<App />);
+  expect(screen.getByRole('link', { name: 'Reading' }).getAttribute('aria-current')).toBe('page');
 });
 it('edits a held view pill and uses its saved default on returning to Journal', async () => {
   render(<App />);
@@ -202,4 +215,40 @@ it('shows recorded workout bests and history in Library without using prescribed
   expect(screen.getByRole('img', { name: 'Pull-ups history · reps in a set' }).querySelectorAll('circle')).toHaveLength(2);
   expect(screen.getByRole('link', { name: /Sat, 14 Nov 2026 · logged/ })).toBeTruthy();
   expect(screen.queryByText(/99 reps/)).toBeNull();
+});
+
+it.each(['number', 'checklist'])('edits %s goals from their existing page and keeps the same identity', async mode => {
+  const goal = { id: 'editable-goal', kind: 'goal' as const, title: 'Original goal', metric: '', meta: '', ...(mode === 'number' ? { goal: { metric: 'finger-strength' as const, targetKg: 30 } } : { climbGoal: { climbIds: ['slab'] } }) };
+  saveClimb({ id: 'slab', kind: 'climb', title: 'Slab', metric: '6A', meta: 'Gym', climbInfo: { type: 'boulder', where: 'Gym' } });
+  saveResources([...loadResources(), goal]);
+  render(<App />); await navigate('library/goals/editable-goal');
+  await click('Edit');
+  expect(screen.getByRole('heading', { name: 'Edit goal' })).toBeTruthy();
+  await change('Name', 'Updated goal');
+  if (mode === 'number') await change('Target · kg', '40');
+  await click('Save goal');
+  expect(screen.queryByRole('heading', { name: 'Edit goal' })).toBeNull();
+  expect(screen.getByRole('heading', { name: 'Updated goal' })).toBeTruthy();
+  const saved = loadResources().filter(record => record.id === goal.id);
+  expect(saved).toHaveLength(1);
+  expect(saved[0].title).toBe('Updated goal');
+  if (mode === 'number') expect(saved[0].goal?.targetKg).toBe(40);
+  else expect(saved[0].climbGoal?.climbIds).toEqual(['slab']);
+  await navigate('library'); await navigate('library/goals/editable-goal'); await click('Edit');
+  expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Updated goal');
+});
+it('opens book editing directly and persists the changes', async () => {
+  const data = JSON.parse(localStorage.getItem(ROUTINES_KEY)!);
+  const book = data.books[0];
+  render(<App />); await navigate(`library/books/book-${book.id}`);
+  await click('Edit book');
+  await change('Title', 'Updated book'); await click('Save book');
+  expect(screen.queryByRole('heading', { name: 'Edit book' })).toBeNull();
+  expect(screen.getByRole('heading', { name: 'Updated book' })).toBeTruthy();
+  const saved = JSON.parse(localStorage.getItem(ROUTINES_KEY)!);
+  expect(saved.books).toHaveLength(data.books.length);
+  expect(saved.books.find((item: { id: string }) => item.id === book.id).title).toBe('Updated book');
+  expect(saved.checkIns).toEqual(data.checkIns);
+  await navigate('library'); await navigate(`library/books/book-${book.id}`);
+  expect(screen.getByRole('heading', { name: 'Updated book' })).toBeTruthy();
 });

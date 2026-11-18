@@ -27,7 +27,6 @@
   padding: calc(var(--journal-safe-top) + 6px) max(16px, env(safe-area-inset-right, 0px)) calc(132px + var(--journal-dock-bottom)) max(16px, env(safe-area-inset-left, 0px));
 }
 .journal-widgets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.data-mode-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; color: var(--color-text-muted); font: 400 12px/18px var(--font-mono); select { min-height: 36px; max-width: 65%; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); background: var(--color-surface); font: inherit; } }
 .journal-widget {
   aspect-ratio: 1;
   position: relative;
@@ -408,13 +407,13 @@
 .routine-card { border-radius: 20px; }
 .expanded-page .written-entry { padding: 0; border: 0; border-radius: 0; background: transparent; }
 .todo-date { margin: -2px 0 14px; font-size: 12px; line-height: 16px; }
+.todo-heading { gap: 2px; margin-left: -10px; h1 { flex: 1; margin: 0; } > .text-action { padding: 0 10px; font-size: 14px; font-weight: 650; } }
 .todo-sections > section { margin-top: 16px; > h2 { margin: 0 4px 6px; } }
 .todo-sections .due-today { box-shadow: none; }
 .todo-sections .unlogged-row { margin: 0; background: var(--color-sidebar); strong { font-size: 15px; } }
 .todo-sections .due-missing-divider { border: 0; margin: 0; padding: 0; }
 .todo-sections .due-item:first-child > .due-row { border-top: 0; }
 .todo-sections .due-body strong { font-size: 15px; }
-.screen-today .data-mode-switch { margin-top: 28px; }
 .due-body small { overflow-wrap: anywhere; }
 .due-journal { margin: 14px 0 0; border-bottom: 0;
   .due-heading { min-height: 38px; strong { font: 500 11px/16px var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--color-text-muted); } > span { margin-left: auto; } > svg { margin-left: 0; } }
@@ -464,6 +463,13 @@
 .target-stepper { display: flex; align-items: center; gap: 8px; button { width: 44px; height: 44px; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-page); font-size: 22px; } input { width: 28px; padding: 0; border: 0; background: transparent; appearance: textfield; &::-webkit-inner-spin-button { appearance: none; } } }
 .weekly-target-track { height: 5px; margin: 0 14px 12px; border-radius: 3px; background: var(--color-track); overflow: hidden; i { display: block; height: 100%; border-radius: inherit; } @each $category in training, rehab, habit { &[data-category='#{$category}'] i { background: var(--color-#{$category}-fg); } } }
 .todo-sections .weekly-training { min-height: 44px; .routine-ring { display: none; } .due-body { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 8px; padding: 10px 0; } }
+.todo-sections .todo-weekly-item { padding: 0 14px 12px;
+  & + & { border-top: 1px solid var(--color-border); }
+  .due-row { padding: 0; min-height: 34px; border: 0; }
+  .due-body { min-height: 34px; padding: 10px 0 0; small { white-space: nowrap; } }
+  .due-chevron { margin-right: -8px; }
+  .weekly-target-track { margin: 6px 0 0; height: 8px; }
+}
 .todo-sections > section:last-child .settings-row { min-height: 44px; padding-block: 0; }
 
 // Shared Journal / Do / Library navigation.
@@ -495,8 +501,6 @@
 .continue-later { float: right; margin-bottom: 12px; }
 .metric-chart { width: 100%; height: 120px; }
 
-.library-page .data-mode-switch { display: block; margin-top: 24px; }
-.library-page .data-mode-switch select { max-width: 100%; }
 
 .library-page a.settings-row, .do-page a.settings-row, .journal-sheet a.settings-row { display: block; }
 .library-page .library-exercise { align-items: flex-start; flex-direction: column; gap: 0; justify-content: center; }
@@ -589,3 +593,6 @@
 .journal-prose ul[data-type=taskList] {list-style:none;padding:0;li{display:flex;gap:10px;align-items:flex-start;>label{padding-top:4px;} >div{flex:1;min-width:0;}p{margin:0 0 8px;}input{width:18px;height:18px;accent-color:var(--color-text);}} }
 .journal-embedded-block {margin:16px 0; .view-widgets{margin:0;} &.ProseMirror-selectednode{outline:2px solid var(--color-text);outline-offset:4px;border-radius:16px;}}
 .embedded-climb {border:1px solid var(--color-border);border-radius:16px;padding:14px;a{display:flex;align-items:center;justify-content:space-between;color:inherit;text-decoration:none;}p{margin:8px 0 0;}}
+
+.book-cover, .cover-image { display: block; overflow: hidden; img { display: block; width: 100%; height: 100%; object-fit: cover; } }
+.cover-image { width: 100%; height: 100%; }

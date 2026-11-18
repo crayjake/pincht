@@ -30,8 +30,8 @@
 .full-widget { padding: 14px; > header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; h2 { margin: 0; font: 700 14px/20px var(--font-sans); } > span { font: 400 12px/16px var(--font-mono); color: var(--color-text-muted); text-align: right; } } }
 .widget-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; color: var(--color-text-muted); font: 400 11px/16px var(--font-mono); > span { display: inline-flex; align-items: center; gap: 5px; } i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; } }
 .widget-goal { display: block; margin-top: 8px; font: 400 11px/16px var(--font-mono); color: var(--color-goal-fg) !important; }
-.book-widget { display: flex; gap: 14px; > div { min-width: 0; flex: 1; } }
-.widget-book-cover { display: block; flex: 0 0 52px; height: 74px; border-radius: 5px; background: var(--color-habit-bg); border: 1px solid var(--color-habit-fg); }
+.book-widget { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; > div { min-width: 0; } }
+.widget-book-cover { display: block; position: relative; height: 100%; aspect-ratio: 2 / 3; min-height: 74px; overflow: hidden; border-radius: 5px; background: var(--color-habit-bg); border: 1px solid var(--color-habit-fg); .cover-image { position: absolute; inset: 0; img { object-fit: contain; } } }
 .widget-book-title { display: block; margin-top: 3px; font: 700 20px/26px var(--font-sans); letter-spacing: -.01em; }
 .widget-book-title + .compact-subline { font: 400 13px/18px var(--font-sans); }
 .widget-chart text.habit-name { font: 600 14px var(--font-sans); fill: var(--color-text); }
