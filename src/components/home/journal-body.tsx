@@ -193,7 +193,6 @@ export function JournalBody({ body, resources, onChange, onOpen, onCreateRecord,
   return <div ref={container} className="journal-body" data-empty={editor?.isEmpty}
     onPointerDownCapture={event => {
       interactions.current.add(event.nativeEvent);
-      if (editor?.view.dom.contains(event.target as globalThis.Node)) setActive(true);
     }}
     onFocusCapture={event => { interactions.current.add(event.nativeEvent); setActive(true); }}>
     <span ref={viewportBottom} className="viewport-bottom-probe" aria-hidden="true" />

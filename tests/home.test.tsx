@@ -334,7 +334,7 @@ describe('Today and journal flows', () => {
   });
   it('quick completion saves usual reading time without invented pages and keeps unfinished rehab visible', async () => {
     render(<Home screen="today" />);
-    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link').map(link => link.getAttribute('aria-label'))).toEqual(['Journal', 'Do', 'Library']);
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull();
     expect(screen.queryByRole('img', { name: '0 of 3 workouts' })).toBeNull();
     expect(within(screen.getByRole('region', { name: 'This week' })).getByRole('link', { name: /^Train.*0 of 3/ }).getAttribute('href')).toBe('#/train/pull-ups-3x5');
     await click('Complete Read for today');
@@ -422,6 +422,7 @@ describe('Today and journal flows', () => {
     const search = screen.getByRole('button', { name: 'Search journal' });
     await act(async () => { fireEvent.scroll(window); });
     expect(heading.classList.contains('is-pinned')).toBe(false);
+    vi.spyOn(window, 'scrollY', 'get').mockReturnValue(100);
     top = 51;
     await act(async () => { fireEvent.scroll(window); });
     expect(heading.classList.contains('is-pinned')).toBe(false);
@@ -471,11 +472,13 @@ describe('Today and journal flows', () => {
   it('opens the implemented climb library and keeps unimplemented metrics visibly in development', () => {
     const { rerender } = render(<LibraryPage category="climbs" onDataMode={vi.fn()} />);
     expect(screen.getByRole('heading', { name: 'Climbs' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Library' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('#/library');
     rerender(<LibraryPage category="metrics" onDataMode={vi.fn()} />);
     expect(screen.getByText('In development')).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Metrics' })).toBeNull();
-    expect(screen.getByRole('link', { name: 'Library' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull();
+    expect(screen.getByRole('link', { name: '‹ Library' }).getAttribute('href')).toBe('#/library');
   });
 
   it('does not consume the welcome-back visit when opening an additional destination first', () => {

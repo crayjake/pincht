@@ -88,7 +88,7 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
       const heading = journalHeading.current;
       const bounds = heading?.getBoundingClientRect();
       const pinTop = heading ? parseFloat(getComputedStyle(heading).top) || 0 : 0;
-      setScrolled(entryDate ? y > 120 : !!bounds?.height && bounds.top <= pinTop);
+      setScrolled(entryDate ? y > 120 : y > 0 && !!bounds?.height && bounds.top <= pinTop);
     }
     scroll();
     window.addEventListener('scroll', scroll, { passive: true });
@@ -220,7 +220,7 @@ export default function Home({ entryDate, screen = 'journal', viewId }: { viewId
         {entryDate && timeline}
         {!entryDate && view && view.blocks.filter(block => block.enabled).map(block => <div className={`custom-view-block block-${block.type}`} key={block.id}>{block.type === 'widgets' ? <ViewWidgets widgets={block.widgets ?? []} days={days} data={data} loads={loads} goalId={block.goalId} /> : block.type === 'todo' ? tasks('compact') : block.type === 'chart' ? <ViewWidgets widgets={[block.chart === 'rehab' ? 'strength' : block.chart === 'sleep' ? 'stages' : block.chart ?? 'strength']} days={days} data={data} loads={loads} goalId={block.goalId} /> : timeline}</div>)}
       </main>
-      {!entryDate && <PrimaryNav active="journal" />}
+      {!entryDate && screen !== 'today' && <PrimaryNav active="journal" />}
     </>}
     {calendar !== null && <DayPicker days={days} initial={calendar || today} moving={!!calendar} onClose={() => setCalendar(null)} onChoose={date => {
       if (!calendar) { setCalendar(null); location.hash = `/journal/${date}`; return; }

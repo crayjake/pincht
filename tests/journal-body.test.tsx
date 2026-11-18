@@ -33,6 +33,14 @@ function setup() {
   return { body, editor: body.editor, toolbar };
 }
 
+it('keeps the typing toolbar closed when a scroll gesture starts over an entry, until the editor actually gains focus', async () => {
+  const { body, toolbar } = setup();
+  await act(async () => { fireEvent.pointerDown(body, { pointerType: 'touch' }); fireEvent.pointerCancel(body); });
+  expect(toolbar.getAttribute('data-visible')).toBe('false');
+  await act(async () => { body.focus(); });
+  expect(toolbar.getAttribute('data-visible')).toBe('true');
+});
+
 it('links a record from the first toolbar button at the caret without duplicating an open mention', async () => {
   const { body, editor, toolbar } = setup();
   await act(async () => { body.focus(); editor.commands.insertContent('Tried'); });

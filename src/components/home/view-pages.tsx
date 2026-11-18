@@ -1,5 +1,5 @@
 import { useState, type DragEvent } from 'react';
-import { PrimaryNav } from '../app-navigation';
+import { BackLink } from '../../navigation';
 import { viewTags, type ViewTag } from '../../routines/tasks';
 import { climbingView, loadViews, saveView, widgetNames, fullWidgets, type JournalView, type ViewBlock, type WidgetId } from './journal-views';
 import './home.scss';
@@ -11,7 +11,7 @@ export function ViewPages({ id, returnTo }: { id?: string; returnTo?: string }) 
   const [views] = useState(loadViews);
   const view = id === 'new' ? { ...structuredClone(climbingView), id: crypto.randomUUID(), name: '', isDefault: false } : views.find(v => v.id === id);
   if (id) return view ? <ViewEditor key={id} view={view} returnTo={returnTo} /> : <main className="today-page"><a href="#/views">Back to views</a><p>View not found.</p></main>;
-  return <><main className="today-page configuration-page"><header className="screen-heading"><div><h1>Views</h1><p>Your data, filtered and arranged</p></div><a className="text-action" href={viewEditorHref('new')}>Add view</a></header><div className="settings-list">{views.map(view => <div className="settings-row" key={view.id}><a href={`#/view/${view.id}`}><strong>{view.name}</strong><small>{view.tags.join(' · ') || 'All entries and routines'}</small></a><a className="text-action" href={viewEditorHref(view.id)}>Edit</a></div>)}</div></main><PrimaryNav active="library" /></>;
+  return <><main className="today-page configuration-page"><header className="screen-heading"><div><BackLink className="text-action" href="#/library">‹ Library</BackLink><h1>Views</h1><p>Your data, filtered and arranged</p></div><a className="text-action" href={viewEditorHref('new')}>Add view</a></header><div className="settings-list">{views.map(view => <div className="settings-row" key={view.id}><a href={`#/view/${view.id}`}><strong>{view.name}</strong><small>{view.tags.join(' · ') || 'All entries and routines'}</small></a><a className="text-action" href={viewEditorHref(view.id)}>Edit</a></div>)}</div></main></>;
 }
 function ViewEditor({ view, returnTo }: { view: JournalView; returnTo?: string }) {
   const [value, setValue] = useState(() => structuredClone(view));
@@ -40,5 +40,5 @@ function ViewEditor({ view, returnTo }: { view: JournalView; returnTo?: string }
       <button className="add-block" aria-expanded={adding} onClick={() => setAdding(!adding)}>Add block · widget, to-do, journal, chart</button>{adding && <div className="settings-chips">{(['widgets', 'todo', 'journal', 'chart'] as const).map(type => <button key={type} disabled={value.blocks.some(block => block.type === type)} onClick={() => { patch({ blocks: [...value.blocks, { id: crypto.randomUUID(), type, enabled: true, ...(type === 'widgets' ? { widgets: ['rehab'] as WidgetId[] } : type === 'chart' ? { chart: 'strength' as const } : {}) }] }); setAdding(false); }}>{blockNames[type]}</button>)}</div>}
     </section>
     <section className="settings-section"><h2 className="eyebrow muted">Placement</h2><div className="settings-list"><div className="settings-row"><div><strong>Make default</strong><small>Open this view when entering Journal</small></div><button className="settings-switch" aria-label="Make default" aria-pressed={!!value.isDefault} onClick={() => patch({ isDefault: !value.isDefault })}><i /></button></div></div></section>
-  </main><PrimaryNav active="library" /></>;
+  </main></>;
 }

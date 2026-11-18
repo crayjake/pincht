@@ -27,10 +27,16 @@ export function RecordItem({ record, onOpen, compact = false, onUpdate }: { reco
     {record.meta && <div className="record-meta">{record.meta}</div>}
     {record.sleep && <Hypnogram night={record.sleep} compact={compact} />}
     {record.kind === 'climb' && onUpdate && <ClimbLog record={record} onUpdate={onUpdate} />}
-    {record.note && !onUpdate && <div className="record-note"><Icon name="note" size={14} /><p>{record.note}</p></div>}
-    {record.kind !== 'climb' && onUpdate && <label className="record-note-field"><span className="sr-only">Notes for {record.title}</span><textarea aria-label={`Notes for ${record.title}`} placeholder="Add a note…" value={record.note ?? ''} onChange={e => onUpdate({ ...record, note: e.target.value })} /></label>}
+    <RecordNote record={record} onUpdate={onUpdate} />
     {record.progress && <div className="goal-progress" role="img" aria-label={`${record.progress.completed} of ${record.progress.total} climbs sent`}><Holds categories={Array.from({ length: record.progress.total }, () => 'goal')} /></div>}
   </div>;
+}
+
+function RecordNote({ record, onUpdate }: { record: JournalRecord; onUpdate?: (record: JournalRecord) => void }) {
+  return <>
+    {record.note && <div className="record-note"><Icon name="note" size={14} /><p>{record.note}</p></div>}
+    {onUpdate && <details className="record-note-disclosure"><summary>{record.note ? 'Edit note' : 'Add a note…'}</summary><label className="record-note-field"><span className="sr-only">Notes for {record.title}</span><textarea rows={1} aria-label={`Notes for ${record.title}`} placeholder={record.kind === 'climb' ? 'Beta, conditions, how it felt…' : 'Add a note…'} value={record.note ?? ''} onChange={e => onUpdate({ ...record, note: e.target.value })} /></label></details>}
+  </>;
 }
 export function DayRecords({ records, onOpen, compact = false, id, onUpdate, editableIds }: { records: PillResource[]; onOpen: (record: PillResource) => void; compact?: boolean; id: string; onUpdate?: (record: JournalRecord) => void; editableIds?: string[] }) {
   return <section className={`day-records${compact ? ' day-records-inline' : ''}`} aria-label="Day records" id={id}>
@@ -48,6 +54,5 @@ function ClimbLog({ record, onUpdate }: { record: JournalRecord; onUpdate: (reco
     {selected && <div className="go-actions"><button onClick={() => { onUpdate({ ...record, climb: { ...climb, sendGo: climb.sendGo === selected ? undefined : selected } }); setSelected(null); }}>{climb.sendGo === selected ? 'Clear send' : 'Sent on this go'}</button><button onClick={() => { const sendGo = climb.sendGo === selected ? undefined : climb.sendGo && climb.sendGo > selected ? climb.sendGo - 1 : climb.sendGo; onUpdate({ ...record, climb: { goes: climb.goes - 1, sendGo } }); setSelected(null); }}>Remove go</button></div>}
     <div className="climb-actions"><button onClick={() => onUpdate(changeGoes(record, climb.goes + 1))}>Another go</button><button aria-pressed={!!climb.sendGo} onClick={() => onUpdate({ ...record, climb: climb.sendGo ? { goes: climb.goes } : { goes: Math.max(1, climb.goes), sendGo: Math.max(1, climb.goes) } })}>Sent it ✓</button></div>
     <p className="settings-caption">Tap a go to mark the send or remove it.</p>
-    <label className="record-note-field"><span>Note for this record</span><textarea rows={1} aria-label={`Notes for ${record.title}`} placeholder="Beta, conditions, how it felt…" value={record.note ?? ''} onChange={e => onUpdate({ ...record, note: e.target.value })} /></label>
   </div>;
 }

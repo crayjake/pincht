@@ -1,10 +1,30 @@
 import { Icon } from './home/journal-icons';
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 // Screens own their docks, so retain the last position across screen remounts.
 let previousTab: string | undefined;
 const tabIds = ['journal', 'do', 'library'];
 export function PrimaryNav({ active }: { active?: string }) {
+  const [hidden, setHidden] = useState(false);
+  const nav = useRef<HTMLElement>(null);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const wake = () => {
+      setHidden(false);
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        // Keep keyboard navigation available while a dock link has focus.
+        if (!nav.current?.contains(document.activeElement)) setHidden(true);
+      }, 3000);
+    };
+    wake();
+    const events = ['pointerdown', 'pointermove', 'scroll', 'keydown', 'focusin', 'focusout'] as const;
+    for (const event of events) document.addEventListener(event, wake, { passive: true, capture: true });
+    return () => {
+      clearTimeout(timer);
+      for (const event of events) document.removeEventListener(event, wake, true);
+    };
+  }, []);
   const indicator = useRef<HTMLSpanElement>(null);
   const transition = useRef({ from: previousTab, to: active });
   useLayoutEffect(() => {
@@ -21,7 +41,7 @@ export function PrimaryNav({ active }: { active?: string }) {
     return () => animation?.cancel();
   }, [active]);
   const tabs = [{ id: 'journal', label: 'Journal', path: '/journal', icon: 'book' }, { id: 'do', label: 'Do', path: '/do', icon: 'bolt' }, { id: 'library', label: 'Library', path: '/library', icon: 'library' }] as const;
-  return <nav className="primary-nav" aria-label="Primary">{tabs.map(tab => <a key={tab.id} href={`#${tab.path}`} aria-label={tab.label} title={tab.label} aria-current={active === tab.id ? 'page' : undefined}>{active === tab.id && <span ref={indicator} className="primary-nav-indicator" aria-hidden="true" />}<span className="primary-nav-icon"><Icon name={tab.icon} size={24} /></span></a>)}</nav>;
+  return <nav ref={nav} className="primary-nav" aria-label="Primary" data-idle={hidden}>{tabs.map(tab => <a key={tab.id} href={`#${tab.path}`} aria-label={tab.label} title={tab.label} aria-current={active === tab.id ? 'page' : undefined}>{active === tab.id && <span ref={indicator} className="primary-nav-indicator" aria-hidden="true" />}<span className="primary-nav-icon"><Icon name={tab.icon} size={24} /></span></a>)}</nav>;
 }
 export function InDevelopment() {
   return <div className="indev-banner" role="note"><strong>In development</strong><span>Awaiting UI/UX pass</span></div>;

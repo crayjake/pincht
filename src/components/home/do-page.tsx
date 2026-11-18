@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
 import { PrimaryNav } from '../app-navigation';
 import { useRoutines } from '../../routines/use-routines';
 import { AlcoholSheet, ReadingSheet } from '../../routines/routine-sheets';
@@ -43,11 +43,23 @@ export default function DoPage() {
     <section className="home-section"><h2 className="eyebrow">Quick log</h2><div className="quick-log-grid">{quickLogs.map(item => <button key={item.kind} onClick={() => setLog(item.kind)}><Icon name={item.icon} size={22} /><span>{item.label}</span></button>)}<button onClick={() => setMore(true)}><Icon name="more" size={22} />More</button></div></section>
     {routines.error && <p role="alert">{routines.error}</p>}
   </main><PrimaryNav active="do" />
-    {more && <Sheet title="More" onClose={() => setMore(false)}><div className="settings-list"><a className="settings-row" href="#/train">Start workout</a><a className="settings-row" href="#/train/max-pull-left">Max pull test</a><button className="settings-row" onClick={() => { setMore(false); setLog('finger'); }}>Finger strength · 20 mm drag</button>{allRoutines(routines.data).filter(routine => routine.active).map(routine => ['rehab','training'].includes(routine.kind) ? <a className="settings-row" key={routine.id} href={`#/train/${routinePlans(routine)[0] ?? ''}`}>{routine.name}</a> : <button className="settings-row" key={routine.id} onClick={() => { setMore(false); setLog(routine.kind as 'reading' | 'alcohol'); }}>{routine.name}</button>)}</div></Sheet>}
+    {more && <Sheet title="More" onClose={() => setMore(false)}><div className="home-list do-more-list">
+      <MoreRow title="Start workout" icon="train" category="training" href="#/train" />
+      <MoreRow title="Max pull test" icon="train" category="rehab" href="#/train/max-pull-left" />
+      <MoreRow title="Finger strength" detail="20 mm drag" icon="metrics" category="rehab" onClick={() => { setMore(false); setLog('finger'); }} />
+      {allRoutines(routines.data).filter(routine => routine.active).map(routine => ['rehab','training'].includes(routine.kind)
+        ? <MoreRow key={routine.id} title={routine.name} icon="train" category={routine.kind} href={`#/train/${routinePlans(routine)[0] ?? ''}`} />
+        : <MoreRow key={routine.id} title={routine.name} icon={routine.kind === 'reading' ? 'book' : 'drink'} category="habit" onClick={() => { setMore(false); setLog(routine.kind as 'reading' | 'alcohol'); }} />)}
+    </div></Sheet>}
     {log === 'reading' && routine && <ReadingSheet data={routines.data} routine={routine} date={localDate()} onChange={routines.update} onClose={() => setLog(null)} />}
     {log === 'alcohol' && routine && <AlcoholSheet data={routines.data} routine={routine} date={localDate()} onChange={routines.update} onClose={() => setLog(null)} />}
     {(log === 'reading' || log === 'alcohol') && !routine && <Sheet title={`Log ${log === 'reading' ? 'reading' : 'drinks'}`} onClose={() => setLog(null)}><p>Set up an active {log === 'reading' ? 'reading' : 'alcohol'} routine to use this log.</p><a className="primary-button" href="#/routines/new">Create routine</a></Sheet>}
     {(log === 'weight' || log === 'climb' || log === 'sleep' || log === 'finger') && <QuickLog kind={log} onClose={() => setLog(null)} />}
 
   </>;
+}
+
+function MoreRow({ title, detail, icon, category, href, onClick }: { title: string; detail?: string; icon: ComponentProps<typeof Icon>['name']; category: string; href?: string; onClick?: () => void }) {
+  const content = <><span className="home-lead"><span data-category={category}><Icon name={icon} size={18} /></span></span><span className="home-row-body"><strong>{title}</strong>{detail && <small>{detail}</small>}</span><Icon name="back" size={16} /></>;
+  return href ? <a className="home-row" href={href}>{content}</a> : <button className="home-row" onClick={onClick}>{content}</button>;
 }

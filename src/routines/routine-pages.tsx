@@ -1,6 +1,5 @@
 import { loadWorkoutPlans } from '../workouts/catalog';
 import { useState } from 'react';
-import { PrimaryNav } from '../components/app-navigation';
 import { Icon } from '../components/home/journal-icons';
 import { localDate } from '../components/home/journal-data';
 import { loadSessions } from '../workouts/storage';
@@ -21,7 +20,7 @@ export function RoutinePages({ id }: { id?: string }) {
     {(['daily', 'interval', 'weekly', 'paused'] as const).map(schedule => {
       const items = routines.filter(r => schedule === 'paused' ? !r.active : r.active && r.schedule === schedule);
       return items.length > 0 && <section className="settings-section" key={schedule}><h2 className="eyebrow muted">{schedule === 'paused' ? 'Paused' : scheduleNames[schedule]}</h2><div className="settings-list">{items.map(r => <div className="settings-row" key={r.id}><a href={`#/routines/${r.id}`}><strong>{r.name}</strong><small>{r.schedule === 'weekly' ? `${comparatorLabel(r)} ${r.target} a week · ${routineCount(r, data, sessions)} so far` : r.schedule === 'interval' ? `${r.interval - 1} rest ${r.interval === 2 ? 'day' : 'days'} between` : r.planSchedule ? 'Current workout plan schedule' : r.days ? r.days.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(' · ') : 'Daily'}</small></a>{!r.active ? <button className="text-action" onClick={() => update(saveRoutine(data, { ...r, active: true }))}>Resume</button> : <a className="icon-button" aria-label={`Edit ${r.name}`} href={`#/routines/${r.id}`}><Icon name="chevron" size={16} /></a>}</div>)}</div></section>;
-    })}<a className="text-action" href="#/todo">Back to To-do</a></main><PrimaryNav active="library" /></>;
+    })}<a className="text-action" href="#/todo">Back to To-do</a></main></>;
 }
 function RoutineEditor({ routine, data, onSave, error }: { routine: Routine; data: RoutineData; onSave: (data: RoutineData) => void; error: string }) {
   const [value, setValue] = useState<Routine>(() => structuredClone(routine));
@@ -46,5 +45,5 @@ function RoutineEditor({ routine, data, onSave, error }: { routine: Routine; dat
     {['training', 'rehab'].includes(value.kind) && <section className="settings-section"><h2 className="eyebrow muted">What counts</h2><div className="settings-chips"><button aria-pressed={!specific} onClick={() => { setSpecific(false); patch({ workoutPlanIds: [] }); }}>Any workout</button><button aria-pressed={specific} onClick={() => setSpecific(true)}>Specific workouts</button></div>{specific && <div className="settings-chips">{loadWorkoutPlans().map(plan => <button key={plan.id} data-category={value.kind} aria-pressed={routinePlans(value).includes(plan.id)} onClick={() => patch({ workoutPlanIds: routinePlans(value).includes(plan.id) ? routinePlans(value).filter(id => id !== plan.id) : [...routinePlans(value), plan.id] })}>{plan.name}</button>)}</div>}</section>}
     <section className="settings-section"><h2 className="eyebrow muted">Shows in views tagged</h2><div className="settings-chips">{viewTags.map(tag => <button key={tag} data-category={tag === 'reading' ? 'habit' : tag} aria-pressed={routineTags(value).includes(tag)} onClick={() => patch({ tags: routineTags(value).includes(tag) ? routineTags(value).filter(t => t !== tag) : [...routineTags(value), tag] })}>{tag}</button>)}</div></section>
     <button className="text-action full-width" onClick={() => save(!value.active)}>{value.active ? 'Pause routine' : 'Resume routine'}</button>
-  </main><PrimaryNav active="library" /></>;
+  </main></>;
 }

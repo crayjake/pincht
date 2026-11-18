@@ -45,8 +45,39 @@ it('opens Journal without default widgets and with three symbol dock links, with
   expect(dock.every(link => link.textContent === '')).toBe(true);
   expect(screen.getByRole('link', { name: 'Open To-do' }).getAttribute('href')).toBe('#/todo');
   await navigate('todo');
+  expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull();
   expect(screen.getByRole('link', { name: 'Back to Journal' }).getAttribute('href')).toBe('#/journal');
   expect(screen.getByRole('link', { name: 'Routines ›' }).getAttribute('href')).toBe('#/routines');
+});
+it.each(['settings', 'routines', 'routines/read', 'views', 'views/edit/all', 'views/edit/new', 'library/climbs', 'library/books', 'library/books/book-piranesi', 'journal/2026-11-15'])('hides the dock on the nested %s screen', async path => {
+  render(<App />);
+  await navigate(path);
+  expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull();
+});
+it('hides the dock after inactivity, restores it on interaction, and keeps it available for keyboard navigation', async () => {
+  render(<App />);
+  const nav = screen.getByRole('navigation', { name: 'Primary' });
+  expect(nav.getAttribute('data-idle')).toBe('false');
+  await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+  expect(nav.getAttribute('data-idle')).toBe('true');
+  await act(async () => { fireEvent.pointerDown(document.body); });
+  expect(nav.getAttribute('data-idle')).toBe('false');
+  await act(async () => { screen.getByRole('link', { name: 'Library', exact: true }).focus(); await vi.advanceTimersByTimeAsync(3000); });
+  expect(nav.getAttribute('data-idle')).toBe('false');
+  await act(async () => { (document.activeElement as HTMLElement).blur(); await vi.advanceTimersByTimeAsync(3000); });
+  expect(nav.getAttribute('data-idle')).toBe('true');
+});
+it('opens More using the existing app rows and opens its finger-strength log', async () => {
+  render(<App />);
+  await navigate('do');
+  expect(screen.getByRole('navigation', { name: 'Primary' })).toBeTruthy();
+  await click('More');
+  const more = within(screen.getByRole('dialog', { name: 'More' }));
+  expect(more.getByRole('link', { name: 'Start workout' }).className).toBe('home-row');
+  expect(more.getByRole('link', { name: 'Max pull test' }).getAttribute('href')).toBe('#/train/max-pull-left');
+  await click(/Finger strength/, more);
+  expect(screen.queryByRole('dialog', { name: 'More' })).toBeNull();
+  expect(screen.getByLabelText('20 mm three-finger drag · kg')).toBeTruthy();
 });
 it('remembers the selected journal view across dock changes, To-do, and app reopening', async () => {
   const app = render(<App />);
